@@ -1,0 +1,7 @@
+{
+  "name": "Getaroag",
+  "description": "Peer-to-peer car sharing platform enabling users to rent cars from locals in Turkey and beyond.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
