@@ -206,69 +206,84 @@ const SearchPage = () => {
     <div className="h-screen flex flex-col bg-white dark:bg-gray-900 overflow-hidden font-sans transition-colors duration-300">
       <Navbar />
       
-      {/* Filter Bar - REFACTORED: Removed overflow-x-auto to prevent clipping dropdowns, using flex-wrap */}
-      <div className="border-b dark:border-gray-800 bg-white dark:bg-gray-900 py-3 px-4 flex flex-wrap items-center gap-3 z-40 relative">
+      {/* Filter Bar - Modernized & Balanced Layout */}
+      <div className="border-b dark:border-gray-800 bg-white dark:bg-gray-900 py-3 px-4 flex items-center justify-between gap-3 z-40 relative shadow-sm">
         
-        {/* Map Toggle (Replaces City Name) */}
-        <button
-          onClick={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
-          className="flex items-center gap-2 font-bold text-gray-800 dark:text-white pr-4 border-r dark:border-gray-700 mr-2 hover:text-primary-600 transition-colors"
-        >
-          {viewMode === 'list' ? <MapIcon size={20} /> : <List size={20} />}
-          <span>{viewMode === 'list' ? 'Harita' : 'Liste'}</span>
-        </button>
-        
-        {/* Price Filter */}
-        <div className="relative">
-          <button 
-            onClick={() => setActiveFilter(activeFilter === 'price' ? null : 'price')}
-            className={`px-4 py-2 rounded-full border text-sm font-medium flex items-center gap-1 transition-colors 
-              ${activeFilter === 'price' || priceSort 
-                ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400' 
-                : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'}`}
-          >
-            {priceSort ? (priceSort === 'asc' ? 'Fiyat: Artan' : 'Fiyat: Azalan') : 'Fiyat'}
-            <ChevronDown size={14}/>
-          </button>
-          {activeFilter === 'price' && (
-            <div className="absolute top-full mt-2 left-0 bg-white dark:bg-gray-800 shadow-xl dark:shadow-none dark:border dark:border-gray-700 rounded-xl border border-gray-100 p-2 min-w-[200px] z-50 animate-in slide-in-from-top-2">
-              <button onClick={() => { setPriceSort('asc'); setActiveFilter(null); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200 rounded-lg">En Düşük Fiyat</button>
-              <button onClick={() => { setPriceSort('desc'); setActiveFilter(null); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200 rounded-lg">En Yüksek Fiyat</button>
-              {priceSort && <button onClick={() => { setPriceSort(null); setActiveFilter(null); }} className="w-full text-left px-4 py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg border-t dark:border-gray-700 mt-1">Sıfırla</button>}
+        {/* Left Side: Filters */}
+        <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto scrollbar-hide">
+             {/* Price Filter */}
+            <div className="relative">
+              <button 
+                onClick={() => setActiveFilter(activeFilter === 'price' ? null : 'price')}
+                className={`px-4 py-2.5 rounded-xl border text-sm font-medium flex items-center gap-2 transition-all shadow-sm whitespace-nowrap
+                  ${activeFilter === 'price' || priceSort 
+                    ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400' 
+                    : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-gray-800'}`}
+              >
+                {priceSort ? (priceSort === 'asc' ? 'Fiyat: Artan' : 'Fiyat: Azalan') : 'Fiyat'}
+                <ChevronDown size={14} className={`transition-transform duration-200 ${activeFilter === 'price' ? 'rotate-180' : ''}`}/>
+              </button>
+              {activeFilter === 'price' && (
+                <div className="absolute top-full mt-2 left-0 bg-white dark:bg-gray-800 shadow-xl dark:shadow-none dark:border dark:border-gray-700 rounded-xl border border-gray-100 p-2 min-w-[200px] z-50 animate-in slide-in-from-top-2">
+                  <button onClick={() => { setPriceSort('asc'); setActiveFilter(null); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200 rounded-lg">En Düşük Fiyat</button>
+                  <button onClick={() => { setPriceSort('desc'); setActiveFilter(null); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200 rounded-lg">En Yüksek Fiyat</button>
+                  {priceSort && <button onClick={() => { setPriceSort(null); setActiveFilter(null); }} className="w-full text-left px-4 py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg border-t dark:border-gray-700 mt-1">Sıfırla</button>}
+                </div>
+              )}
             </div>
-          )}
+
+            {/* Type Filter */}
+            <div className="relative">
+              <button 
+                 onClick={() => setActiveFilter(activeFilter === 'type' ? null : 'type')}
+                 className={`px-4 py-2.5 rounded-xl border text-sm font-medium flex items-center gap-2 transition-all shadow-sm whitespace-nowrap
+                   ${activeFilter === 'type' || selectedType 
+                     ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400' 
+                     : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-gray-800'}`}
+              >
+                {selectedType || 'Araç Tipi'} <ChevronDown size={14} className={`transition-transform duration-200 ${activeFilter === 'type' ? 'rotate-180' : ''}`}/>
+              </button>
+              {activeFilter === 'type' && (
+                <div className="absolute top-full mt-2 left-0 bg-white dark:bg-gray-800 shadow-xl dark:shadow-none dark:border dark:border-gray-700 rounded-xl border border-gray-100 p-2 min-w-[200px] z-50 animate-in slide-in-from-top-2">
+                  {['Economy', 'SUV', 'Compact', 'Premium'].map(type => (
+                    <button 
+                      key={type}
+                      onClick={() => { setSelectedType(type); setActiveFilter(null); }} 
+                      className={`w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200 rounded-lg ${selectedType === type ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 font-bold' : ''}`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                  {selectedType && <button onClick={() => { setSelectedType(null); setActiveFilter(null); }} className="w-full text-left px-4 py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg border-t dark:border-gray-700 mt-1">Sıfırla</button>}
+                </div>
+              )}
+            </div>
         </div>
 
-        {/* Type Filter */}
-        <div className="relative">
-          <button 
-             onClick={() => setActiveFilter(activeFilter === 'type' ? null : 'type')}
-             className={`px-4 py-2 rounded-full border text-sm font-medium flex items-center gap-1 transition-colors 
-               ${activeFilter === 'type' || selectedType 
-                 ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400' 
-                 : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'}`}
-          >
-            {selectedType || 'Araç Tipi'} <ChevronDown size={14}/>
-          </button>
-          {activeFilter === 'type' && (
-            <div className="absolute top-full mt-2 left-0 bg-white dark:bg-gray-800 shadow-xl dark:shadow-none dark:border dark:border-gray-700 rounded-xl border border-gray-100 p-2 min-w-[200px] z-50 animate-in slide-in-from-top-2">
-              {['Economy', 'SUV', 'Compact', 'Premium'].map(type => (
+        {/* Right Side: View Toggle & Advanced Filter */}
+        <div className="flex items-center gap-3">
+             {/* Map/List Toggle Button - Segmented Control Style */}
+             <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl border border-gray-200 dark:border-gray-700">
                 <button 
-                  key={type}
-                  onClick={() => { setSelectedType(type); setActiveFilter(null); }} 
-                  className={`w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200 rounded-lg ${selectedType === type ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 font-bold' : ''}`}
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 rounded-lg transition-all flex items-center justify-center ${viewMode === 'list' ? 'bg-white dark:bg-gray-700 shadow-sm text-primary-600 dark:text-primary-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'}`}
+                  title="Liste Görünümü"
                 >
-                  {type}
+                   <List size={18} strokeWidth={viewMode === 'list' ? 2.5 : 2} />
                 </button>
-              ))}
-              {selectedType && <button onClick={() => { setSelectedType(null); setActiveFilter(null); }} className="w-full text-left px-4 py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg border-t dark:border-gray-700 mt-1">Sıfırla</button>}
-            </div>
-          )}
-        </div>
+                <button 
+                  onClick={() => setViewMode('map')}
+                  className={`p-2 rounded-lg transition-all flex items-center justify-center ${viewMode === 'map' ? 'bg-white dark:bg-gray-700 shadow-sm text-primary-600 dark:text-primary-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'}`}
+                  title="Harita Görünümü"
+                >
+                   <MapIcon size={18} strokeWidth={viewMode === 'map' ? 2.5 : 2} />
+                </button>
+             </div>
 
-        <button className="px-4 py-2 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center gap-2 ml-auto">
-          <SlidersHorizontal size={16}/> Filtrele
-        </button>
+             <button className="px-4 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center gap-2 transition-colors">
+                <SlidersHorizontal size={16}/> <span className="hidden sm:inline">Filtrele</span>
+             </button>
+        </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden relative">
@@ -276,9 +291,6 @@ const SearchPage = () => {
         <div className={`w-full md:w-[50%] lg:w-[45%] h-full overflow-y-auto p-4 space-y-4 pb-32 ${viewMode === 'map' ? 'hidden md:block' : 'block'} dark:bg-gray-900`}>
            <div className="flex justify-between items-center md:hidden mb-4">
               <span className="font-bold text-gray-900 dark:text-white">{filteredCars.length} araç bulundu</span>
-              {/* Note: Mobile Toggle is now in the header, but keeping this text for context or removing the button if redundant. 
-                  Since we moved the toggle to the header, we can hide this specific button to avoid duplication or keep it as text only. 
-                  Let's keep the text count but remove the redundant button. */}
            </div>
            
            {filteredCars.length === 0 && (
