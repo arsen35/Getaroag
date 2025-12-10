@@ -266,8 +266,8 @@ const SearchPage = () => {
       </div>
 
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Results List */}
-        <div className={`w-full md:w-[50%] lg:w-[45%] h-full overflow-y-auto p-4 space-y-4 ${viewMode === 'map' ? 'hidden md:block' : 'block'} dark:bg-gray-900`}>
+        {/* Results List - ADDED pb-32 to fix mobile view issue */}
+        <div className={`w-full md:w-[50%] lg:w-[45%] h-full overflow-y-auto p-4 space-y-4 pb-32 ${viewMode === 'map' ? 'hidden md:block' : 'block'} dark:bg-gray-900`}>
            <div className="flex justify-between items-center md:hidden mb-4">
               <span className="font-bold text-gray-900 dark:text-white">{filteredCars.length} araç bulundu</span>
               <button 
