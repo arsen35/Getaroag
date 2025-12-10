@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Search, Shield, Users, Clock, Star, ArrowRight, Navigation, Calendar as CalendarIcon } from 'lucide-react';
+import { MapPin, Search, Shield, Users, Clock, Star, ArrowRight, Navigation, Calendar as CalendarIcon, Tag } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import CustomCalendar from '../components/CustomCalendar';
 
@@ -96,11 +96,24 @@ const HomePage = () => {
     { name: 'Antalya', image: 'https://images.unsplash.com/photo-1542051841857-5f90071e7989?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80' },
   ];
 
-  const inputClass = "w-full pl-12 pr-4 py-4 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-primary-500 rounded-xl focus:outline-none transition-all font-medium text-gray-900 dark:text-white placeholder-gray-500 shadow-sm";
+  // Thinner, cleaner input style
+  const inputClass = "w-full pl-10 pr-4 py-3.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-primary-500 rounded-xl focus:outline-none transition-all font-medium text-gray-900 dark:text-white placeholder-gray-500 shadow-sm text-sm";
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 font-sans transition-colors duration-300 pb-20 md:pb-0">
       <Navbar />
+      
+      {/* Desktop Banner (Hidden on Mobile) */}
+      <div className="hidden md:flex bg-gradient-to-r from-primary-700 to-purple-700 text-white py-2.5 justify-center items-center text-sm font-medium shadow-sm relative overflow-hidden">
+         <div className="absolute top-0 left-0 w-full h-full bg-white/5 skew-x-12 transform -translate-x-1/2"></div>
+         <div className="flex items-center gap-2 relative z-10 animate-in fade-in slide-in-from-top-2">
+            <span className="bg-white/20 backdrop-blur-sm px-2 py-0.5 rounded text-xs font-bold border border-white/20">YENİ</span>
+            <span>Yaz sezonuna özel tüm araçlarda <strong>%15 indirim</strong> fırsatını kaçırma!</span>
+            <span className="flex items-center gap-1 bg-white text-primary-700 px-2 py-0.5 rounded font-mono font-bold text-xs ml-2 cursor-pointer hover:scale-105 transition-transform" title="Kopyala">
+               <Tag size={12} /> YAZ15
+            </span>
+         </div>
+      </div>
       
       {/* Custom Calendar Component */}
       <CustomCalendar 
@@ -116,7 +129,7 @@ const HomePage = () => {
       
       {/* Hero Section */}
       <div className="relative overflow-hidden bg-gradient-to-br from-white via-primary-50 to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <div className="container mx-auto px-4 py-12 md:py-24">
+        <div className="container mx-auto px-4 py-12 md:py-20">
           <div className="flex flex-col md:flex-row items-center gap-16">
             <div className="md:w-1/2 space-y-8 relative z-10">
               <h1 className="text-4xl md:text-6xl font-bold text-gray-900 dark:text-white leading-tight tracking-tight">
@@ -130,10 +143,10 @@ const HomePage = () => {
               </p>
 
               {/* Search Form Card */}
-              <form onSubmit={handleSearch} className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl dark:shadow-none dark:border dark:border-gray-700 space-y-4 transition-transform hover:scale-[1.01]">
+              <form onSubmit={handleSearch} className="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-xl dark:shadow-none dark:border dark:border-gray-700 space-y-4 transition-transform hover:scale-[1.01]">
                 {/* Location Input */}
                 <div className="relative group" ref={dropdownRef}>
-                  <MapPin className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 z-10" size={20} />
+                  <MapPin className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-400 z-10" size={18} />
                   <input
                     type="text"
                     placeholder="Şehir, ilçe veya semt (örn: Kadıköy)"
@@ -178,42 +191,54 @@ const HomePage = () => {
                   )}
                 </div>
                 
-                {/* Date Inputs - REPLACED WITH CUSTOM TRIGGER */}
-                <div className="flex gap-4">
+                {/* Date Inputs - Modernized & Thinner */}
+                <div className="flex gap-3">
                   {/* Pickup Trigger */}
                   <div 
-                    className="relative flex-1 group h-[72px] cursor-pointer"
+                    className="relative flex-1 group h-14 cursor-pointer"
                     onClick={() => setIsCalendarOpen(true)}
                   >
-                    <div className="absolute inset-0 w-full h-full bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 group-hover:border-primary-500 rounded-xl flex items-center pl-4 pt-4 transition-colors">
-                       <span className={`font-semibold text-lg ${pickup ? 'text-gray-900 dark:text-white' : 'text-gray-400 font-normal'}`}>
-                         {pickup ? new Date(pickup).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) : 'Tarih Seç'}
-                       </span>
+                    <div className="absolute inset-0 w-full h-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 group-hover:border-primary-500 rounded-xl flex items-center pl-3 pr-3 transition-colors">
+                       <div className="flex items-center gap-3 w-full">
+                           <div className="p-1.5 bg-gray-50 dark:bg-gray-700 rounded-lg text-gray-500 group-hover:text-primary-600 transition-colors">
+                               <CalendarIcon size={18} />
+                           </div>
+                           <div className="flex flex-col">
+                               <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wide leading-none mb-0.5">Alış Tarihi</span>
+                               <span className={`text-sm font-semibold truncate ${pickup ? 'text-gray-900 dark:text-white' : 'text-gray-400 font-normal'}`}>
+                                 {pickup ? new Date(pickup).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }) : 'Tarih Seç'}
+                               </span>
+                           </div>
+                       </div>
                     </div>
-                    <div className="absolute left-4 top-3 text-xs text-gray-500 font-bold z-10 transition-colors group-hover:text-primary-600">Alış Tarihi</div>
-                    <CalendarIcon className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 group-hover:text-primary-600 transition-colors z-10" size={20} />
                   </div>
                   
                   {/* Dropoff Trigger */}
                   <div 
-                    className="relative flex-1 group h-[72px] cursor-pointer"
+                    className="relative flex-1 group h-14 cursor-pointer"
                     onClick={() => setIsCalendarOpen(true)}
                   >
-                     <div className="absolute inset-0 w-full h-full bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 group-hover:border-primary-500 rounded-xl flex items-center pl-4 pt-4 transition-colors">
-                       <span className={`font-semibold text-lg ${dropoff ? 'text-gray-900 dark:text-white' : 'text-gray-400 font-normal'}`}>
-                         {dropoff ? new Date(dropoff).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) : 'Tarih Seç'}
-                       </span>
+                     <div className="absolute inset-0 w-full h-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 group-hover:border-primary-500 rounded-xl flex items-center pl-3 pr-3 transition-colors">
+                       <div className="flex items-center gap-3 w-full">
+                           <div className="p-1.5 bg-gray-50 dark:bg-gray-700 rounded-lg text-gray-500 group-hover:text-primary-600 transition-colors">
+                               <CalendarIcon size={18} />
+                           </div>
+                           <div className="flex flex-col">
+                               <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wide leading-none mb-0.5">İade Tarihi</span>
+                               <span className={`text-sm font-semibold truncate ${dropoff ? 'text-gray-900 dark:text-white' : 'text-gray-400 font-normal'}`}>
+                                 {dropoff ? new Date(dropoff).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }) : 'Tarih Seç'}
+                               </span>
+                           </div>
+                       </div>
                     </div>
-                    <div className="absolute left-4 top-3 text-xs text-gray-500 font-bold z-10 transition-colors group-hover:text-primary-600">İade Tarihi</div>
-                    <CalendarIcon className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 group-hover:text-primary-600 transition-colors z-10" size={20} />
                   </div>
                 </div>
                 
                 <button
                   type="submit"
-                  className="w-full bg-primary-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-primary-700 transition-colors shadow-none border border-white/30 flex items-center justify-center gap-2"
+                  className="w-full bg-primary-600 text-white py-3.5 rounded-xl font-bold text-lg hover:bg-primary-700 transition-colors shadow-none border border-white/30 flex items-center justify-center gap-2"
                 >
-                  <Search size={24} />
+                  <Search size={22} />
                   Araç Bul
                 </button>
               </form>
