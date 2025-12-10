@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { Shield, CheckCircle, CreditCard, Calendar } from 'lucide-react';
+import { Shield, CheckCircle, CreditCard, Calendar as CalendarIcon } from 'lucide-react';
 import { Car } from '../types';
+import CustomCalendar from '../components/CustomCalendar';
 
 const PaymentPage = () => {
   const { state } = useLocation();
@@ -12,6 +13,9 @@ const PaymentPage = () => {
   // Use local state to allow editing
   const [pickupDate, setPickupDate] = useState(state?.pickupDate || new Date().toISOString().split('T')[0]);
   const [returnDate, setReturnDate] = useState(state?.returnDate || new Date(Date.now() + 86400000).toISOString().split('T')[0]);
+  
+  // Custom Calendar State
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   if (!car) {
     return (
@@ -43,6 +47,18 @@ const PaymentPage = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans transition-colors duration-300">
       <Navbar />
       
+      {/* Integrated Custom Calendar */}
+      <CustomCalendar 
+        isOpen={isCalendarOpen} 
+        onClose={() => setIsCalendarOpen(false)}
+        startDate={pickupDate}
+        endDate={returnDate}
+        onChange={(start, end) => {
+          setPickupDate(start);
+          setReturnDate(end);
+        }}
+      />
+      
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">Rezervasyon ve Ödeme</h1>
         
@@ -57,30 +73,30 @@ const PaymentPage = () => {
                    <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">{car.year} • {car.transmission} • {car.fuelType}</p>
                    
                    <div className="space-y-4 border-t dark:border-gray-700 pt-4">
-                      <div className="flex items-start gap-3">
-                         <Calendar className="text-primary-600 mt-1" size={20} />
-                         <div className="w-full">
-                            <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Alış Tarihi</label>
-                            <input 
-                              type="date"
-                              value={pickupDate}
-                              onChange={(e) => setPickupDate(e.target.value)}
-                              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 text-sm font-medium text-gray-900 dark:text-white outline-none focus:ring-1 focus:ring-primary-500"
-                            />
-                         </div>
-                      </div>
-                      <div className="flex items-start gap-3">
-                         <Calendar className="text-primary-600 mt-1" size={20} />
-                         <div className="w-full">
-                            <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">İade Tarihi</label>
-                            <input 
-                              type="date"
-                              value={returnDate}
-                              min={pickupDate}
-                              onChange={(e) => setReturnDate(e.target.value)}
-                              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 text-sm font-medium text-gray-900 dark:text-white outline-none focus:ring-1 focus:ring-primary-500"
-                            />
-                         </div>
+                      {/* Trigger Calendar with this block */}
+                      <div 
+                        className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 p-2 rounded-lg transition-colors"
+                        onClick={() => setIsCalendarOpen(true)}
+                      >
+                          <div className="flex items-start gap-3 mb-3">
+                             <CalendarIcon className="text-primary-600 mt-1" size={20} />
+                             <div className="w-full">
+                                <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Alış Tarihi</label>
+                                <div className="font-medium text-gray-900 dark:text-white">
+                                   {new Date(pickupDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                </div>
+                             </div>
+                          </div>
+                          <div className="flex items-start gap-3">
+                             <CalendarIcon className="text-primary-600 mt-1" size={20} />
+                             <div className="w-full">
+                                <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">İade Tarihi</label>
+                                <div className="font-medium text-gray-900 dark:text-white">
+                                   {new Date(returnDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                </div>
+                             </div>
+                          </div>
+                          <div className="mt-2 text-xs text-primary-600 text-center font-medium">Değiştirmek için tıklayın</div>
                       </div>
                    </div>
                 </div>

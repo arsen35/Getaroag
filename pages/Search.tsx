@@ -206,11 +206,17 @@ const SearchPage = () => {
     <div className="h-screen flex flex-col bg-white dark:bg-gray-900 overflow-hidden font-sans transition-colors duration-300">
       <Navbar />
       
-      {/* Filter Bar */}
-      <div className="border-b dark:border-gray-800 bg-white dark:bg-gray-900 py-3 px-4 flex items-center gap-3 overflow-x-auto whitespace-nowrap scrollbar-hide z-40">
-        <div className="font-semibold text-gray-800 dark:text-gray-200 pr-4 border-r dark:border-gray-700 mr-2">
-          {state?.location || "İstanbul"}
-        </div>
+      {/* Filter Bar - REFACTORED: Removed overflow-x-auto to prevent clipping dropdowns, using flex-wrap */}
+      <div className="border-b dark:border-gray-800 bg-white dark:bg-gray-900 py-3 px-4 flex flex-wrap items-center gap-3 z-40 relative">
+        
+        {/* Map Toggle (Replaces City Name) */}
+        <button
+          onClick={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
+          className="flex items-center gap-2 font-bold text-gray-800 dark:text-white pr-4 border-r dark:border-gray-700 mr-2 hover:text-primary-600 transition-colors"
+        >
+          {viewMode === 'list' ? <MapIcon size={20} /> : <List size={20} />}
+          <span>{viewMode === 'list' ? 'Harita' : 'Liste'}</span>
+        </button>
         
         {/* Price Filter */}
         <div className="relative">
@@ -266,16 +272,13 @@ const SearchPage = () => {
       </div>
 
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Results List - ADDED pb-32 to fix mobile view issue */}
+        {/* Results List */}
         <div className={`w-full md:w-[50%] lg:w-[45%] h-full overflow-y-auto p-4 space-y-4 pb-32 ${viewMode === 'map' ? 'hidden md:block' : 'block'} dark:bg-gray-900`}>
            <div className="flex justify-between items-center md:hidden mb-4">
               <span className="font-bold text-gray-900 dark:text-white">{filteredCars.length} araç bulundu</span>
-              <button 
-                onClick={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
-                className="flex items-center gap-2 text-primary-600 dark:text-primary-400 font-medium"
-              >
-                {viewMode === 'list' ? <><MapIcon size={18}/> Harita</> : <><List size={18}/> Liste</>}
-              </button>
+              {/* Note: Mobile Toggle is now in the header, but keeping this text for context or removing the button if redundant. 
+                  Since we moved the toggle to the header, we can hide this specific button to avoid duplication or keep it as text only. 
+                  Let's keep the text count but remove the redundant button. */}
            </div>
            
            {filteredCars.length === 0 && (
