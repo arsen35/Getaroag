@@ -114,6 +114,10 @@ const ListCarPage = () => {
         lng: coords.lng + (Math.random() * 0.05 - 0.025)
     };
 
+    // Parse Price Safely
+    const rawPrice = parseInt(formData.pricePerDay);
+    const safePrice = isNaN(rawPrice) ? 0 : rawPrice;
+
     // Create new car object conforming to BOTH Profile (simplified) and Search (detailed) requirements
     const newCar = {
       id: Date.now(), // Unique numeric ID
@@ -121,9 +125,9 @@ const ListCarPage = () => {
       brand: formData.brand,
       model: formData.model,
       year: parseInt(formData.year),
-      price: parseInt(formData.pricePerDay), // Used by Profile
-      pricePerDay: parseInt(formData.pricePerDay), // Used by Search
-      pricePerHour: Math.round(parseInt(formData.pricePerDay) / 8),
+      price: safePrice, // Used by Profile
+      pricePerDay: safePrice, // Used by Search
+      pricePerHour: Math.round(safePrice / 8),
       earnings: 0,
       status: 'Active', // Auto-activate for demo
       image: formData.imagePreview || 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',

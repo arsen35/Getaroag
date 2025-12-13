@@ -124,11 +124,20 @@ const ProfilePage = () => {
     }
     
     if(window.confirm("Bu aracı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")) {
-      // Force string comparison for safety
       const targetId = String(id);
+      
+      // Filter out the car
       const newCars = myCars.filter(c => String(c.id) !== targetId);
+
+      // 1. Update State to reflect change in UI
       setMyCars(newCars);
-      // localStorage update happens in useEffect
+
+      // 2. Update LocalStorage IMMEDIATELY (Don't wait for useEffect)
+      // This is crucial for fixing the "can't delete" bug
+      localStorage.setItem('myCars', JSON.stringify(newCars));
+
+      // 3. Notify other tabs/components
+      window.dispatchEvent(new Event('storage'));
     }
   };
 
@@ -137,7 +146,11 @@ const ProfilePage = () => {
     if(window.confirm("Bu aracı silmek istediğinize emin misiniz?")) {
         const targetId = String(id);
         const newCars = myCars.filter(c => String(c.id) !== targetId);
+        
         setMyCars(newCars);
+        localStorage.setItem('myCars', JSON.stringify(newCars));
+        window.dispatchEvent(new Event('storage'));
+        
         setIsEditCarOpen(false);
         setEditingCar(null);
     }
