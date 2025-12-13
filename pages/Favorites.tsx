@@ -11,11 +11,33 @@ const FavoritesPage = () => {
   const [favoriteCars, setFavoriteCars] = useState<Car[]>([]);
 
   useEffect(() => {
+    // 1. Get user listed cars from LocalStorage
+    let localCars: Car[] = [];
+    try {
+        const stored = localStorage.getItem('myCars');
+        if (stored) {
+            localCars = JSON.parse(stored);
+        }
+    } catch (e) {
+        console.error("Error loading local cars", e);
+    }
+
+    // 2. Combine with Mock Data
+    const allCars = [...MOCK_CARS, ...localCars];
+
+    // 3. Filter Favorites
     const savedFavs = localStorage.getItem('favorites');
     if (savedFavs) {
-      const parsedFavs = JSON.parse(savedFavs);
-      setFavorites(parsedFavs);
-      setFavoriteCars(MOCK_CARS.filter(car => parsedFavs.includes(Number(car.id))));
+      try {
+          const parsedFavs = JSON.parse(savedFavs);
+          setFavorites(parsedFavs);
+          
+          // Find cars that match IDs in favorites
+          const foundCars = allCars.filter(car => parsedFavs.includes(Number(car.id)));
+          setFavoriteCars(foundCars);
+      } catch (e) {
+          console.error("Error parsing favorites", e);
+      }
     }
   }, []);
 
@@ -23,7 +45,10 @@ const FavoritesPage = () => {
     e.stopPropagation();
     const newFavs = favorites.filter(fId => fId !== Number(id));
     setFavorites(newFavs);
-    setFavoriteCars(MOCK_CARS.filter(car => newFavs.includes(Number(car.id))));
+    
+    // Re-filter favoriteCars from current list to remove the item immediately from UI
+    setFavoriteCars(prev => prev.filter(car => Number(car.id) !== Number(id)));
+    
     localStorage.setItem('favorites', JSON.stringify(newFavs));
   };
 
@@ -76,7 +101,7 @@ const FavoritesPage = () => {
                             <p className="text-xs text-gray-500 dark:text-gray-400">{car.year} • {car.transmission} • {car.fuelType}</p>
                         </div>
                         <div className="flex items-center gap-1 text-sm font-bold text-gray-800 dark:text-gray-200">
-                           <Star size={14} className="text-yellow-400 fill-yellow-400" /> {car.rating}
+                           <Star size={14} className="text-yellow-400 fill-yellow-400" /> {car.rating || 5.0}
                         </div>
                     </div>
 

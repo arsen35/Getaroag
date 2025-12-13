@@ -253,6 +253,7 @@ const ListCarPage = () => {
                                  type="radio" 
                                  name="model" 
                                  value={m} 
+                                 checked={formData.model === m}
                                  className="hidden" 
                                  onChange={(e) => setFormData({...formData, model: e.target.value})}
                                />
@@ -303,6 +304,7 @@ const ListCarPage = () => {
                             type="radio" 
                             name="fuel" 
                             value={fuel} 
+                            checked={formData.fuelType === fuel}
                             className="hidden"
                             onChange={(e) => setFormData({...formData, fuelType: e.target.value})} 
                           />
@@ -331,6 +333,7 @@ const ListCarPage = () => {
                             type="radio" 
                             name="transmission" 
                             value={type} 
+                            checked={formData.transmission === type}
                             className="hidden"
                             onChange={(e) => setFormData({...formData, transmission: e.target.value})} 
                           />
@@ -343,15 +346,15 @@ const ListCarPage = () => {
                    <div className="flex gap-4 mt-8">
                     <button 
                       type="button" 
-                      onClick={() => setStep(1)} // FIX: Now correctly goes back to step 1
+                      onClick={() => setStep(1)} 
                       className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-4 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                     >
                       Geri
                     </button>
                     <button 
                       type="button" 
-                      disabled={!formData.fuelType || !formData.transmission} // FIX: Now checks correct fields
-                      onClick={() => setStep(3)} // FIX: Now correctly goes to step 3
+                      disabled={!formData.fuelType || !formData.transmission} 
+                      onClick={() => setStep(3)} 
                       className="flex-[2] bg-primary-600 disabled:bg-gray-300 text-white py-4 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-none border border-white/30"
                     >
                       Devam Et

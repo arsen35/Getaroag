@@ -10,9 +10,16 @@ const ProfilePage = () => {
   const [userData, setUserData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('cars');
   
-  // State for Edit Modals
+  // State for Modals
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isEditCarOpen, setIsEditCarOpen] = useState(false);
+  
+  // Custom Delete Confirmation Modal State
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{isOpen: boolean, carId: number | string | null}>({
+    isOpen: false,
+    carId: null
+  });
+  
   const [editingCar, setEditingCar] = useState<any>(null);
   
   // Refs for file inputs
@@ -65,11 +72,10 @@ const ProfilePage = () => {
 
   // --- CAR ACTIONS ---
   const openEditCarModal = (car: any) => {
-    // Ensure we have a valid price to edit
     const currentPrice = car.pricePerDay || car.price || 0;
     setEditingCar({ 
         ...car, 
-        price: currentPrice, // Sync for edit field
+        price: currentPrice, 
         imagePreview: car.image 
     }); 
     setIsEditCarOpen(true);
@@ -86,59 +92,62 @@ const ProfilePage = () => {
   const handleSaveCar = () => {
     if (!editingCar) return;
     
-    // Validate price
     const safePrice = Number(editingCar.price) || 0;
-
-    // Create updated object with synced fields
     const updatedCarData = {
           ...editingCar,
           price: safePrice,
-          pricePerDay: safePrice, // IMPORTANT: Update both fields to avoid NaN
+          pricePerDay: safePrice, 
           pricePerHour: Math.round(safePrice / 24),
           image: editingCar.imagePreview || editingCar.image, 
           imagePreview: undefined,
           imageFile: undefined
     };
 
-    const updatedCars = myCars.map(c => String(c.id) === String(editingCar.id) ? updatedCarData : c);
-
-    setMyCars(updatedCars);
-    localStorage.setItem('myCars', JSON.stringify(updatedCars));
+    const currentLS = localStorage.getItem('myCars');
+    let currentList = currentLS ? JSON.parse(currentLS) : myCars;
+    
+    // Use String comparison for IDs to be safe
+    const updatedList = currentList.map((c: any) => String(c.id) === String(editingCar.id) ? updatedCarData : c);
+    
+    localStorage.setItem('myCars', JSON.stringify(updatedList));
+    setMyCars(updatedList);
     window.dispatchEvent(new Event('storage'));
     
     setIsEditCarOpen(false);
     setEditingCar(null);
   };
 
-  const handleDeleteCar = (e: React.MouseEvent | null, id: number | string) => {
-    if (e) {
-       e.preventDefault();
-       e.stopPropagation();
-    }
-    
-    if(window.confirm("Bu aracı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")) {
-      const targetId = String(id);
-      const newCars = myCars.filter(c => String(c.id) !== targetId);
-
-      setMyCars(newCars);
-      localStorage.setItem('myCars', JSON.stringify(newCars));
-      window.dispatchEvent(new Event('storage'));
-    }
+  // 1. Trigger the Delete Confirmation Modal
+  const confirmDeleteCar = (e: React.MouseEvent | null, id: number | string) => {
+    if (e) e.stopPropagation();
+    setDeleteConfirmation({ isOpen: true, carId: id });
   };
 
-  // Helper for deleting from inside the modal
-  const handleDeleteFromModal = (id: number | string) => {
-    if(window.confirm("Bu aracı silmek istediğinize emin misiniz?")) {
-        const targetId = String(id);
-        const newCars = myCars.filter(c => String(c.id) !== targetId);
-        
-        setMyCars(newCars);
-        localStorage.setItem('myCars', JSON.stringify(newCars));
-        window.dispatchEvent(new Event('storage'));
-        
-        setIsEditCarOpen(false);
-        setEditingCar(null);
-    }
+  // 2. Actually execute the delete
+  const executeDeleteCar = () => {
+    const targetId = String(deleteConfirmation.carId);
+    
+    // Read fresh data
+    const currentLS = localStorage.getItem('myCars');
+    // If local storage is empty, fallback to initial cars (which might be in state)
+    let currentList = currentLS ? JSON.parse(currentLS) : myCars;
+    
+    // Filter
+    const newCars = currentList.filter((c: any) => String(c.id) !== targetId);
+
+    // Write back
+    localStorage.setItem('myCars', JSON.stringify(newCars));
+    
+    // Update State
+    setMyCars(newCars);
+    
+    // Notify
+    window.dispatchEvent(new Event('storage'));
+
+    // Close Modals
+    setDeleteConfirmation({ isOpen: false, carId: null });
+    setIsEditCarOpen(false);
+    setEditingCar(null);
   };
 
   // --- PROFILE ACTIONS ---
@@ -162,7 +171,6 @@ const ProfilePage = () => {
   // --- WALLET & ACCOUNT ACTIONS ---
   const handleWithdraw = () => {
     if (balance <= 0) return alert("Çekilecek bakiye bulunmamaktadır.");
-    
     const confirm = window.confirm(`₺${balance.toFixed(2)} tutarındaki bakiyeniz ${userData.iban} hesabına aktarılacaktır. Onaylıyor musunuz?`);
     if (confirm) {
         setTimeout(() => {
@@ -202,8 +210,38 @@ const ProfilePage = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300 font-sans pb-32 md:pb-0 relative">
       <Navbar />
       
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteConfirmation.isOpen && createPortal(
+        <div className="fixed inset-0 z-[10002] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+           <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4 mx-auto text-red-600 dark:text-red-400">
+                  <Trash2 size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-center text-gray-900 dark:text-white mb-2">Aracı Sil?</h3>
+              <p className="text-center text-gray-500 dark:text-gray-400 mb-6">
+                 Bu aracı ilanlardan kaldırmak istediğinize emin misiniz? Bu işlem geri alınamaz.
+              </p>
+              <div className="flex gap-3">
+                 <button 
+                   onClick={() => setDeleteConfirmation({ isOpen: false, carId: null })}
+                   className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                 >
+                   Vazgeç
+                 </button>
+                 <button 
+                   onClick={executeDeleteCar}
+                   className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-600/20"
+                 >
+                   Evet, Sil
+                 </button>
+              </div>
+           </div>
+        </div>,
+        document.body
+      )}
+
+      {/* EDIT PROFILE MODAL */}
       {isEditProfileOpen && createPortal(
-        // Z-Index increased to 10001 to stay above Navbar (9000)
         <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white dark:bg-gray-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl scale-100 animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
@@ -211,7 +249,6 @@ const ProfilePage = () => {
               <button onClick={() => setIsEditProfileOpen(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"><X className="text-gray-500" size={20} /></button>
             </div>
             <form onSubmit={handleSaveProfile} className="p-6 space-y-6">
-              
               <div className="flex justify-center">
                  <div className="relative group cursor-pointer" onClick={() => profileImageFileRef.current?.click()}>
                     <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-white dark:border-gray-700 shadow-lg">
@@ -229,7 +266,6 @@ const ProfilePage = () => {
                  </div>
                  <input type="file" ref={profileImageFileRef} onChange={handleProfileImageUpload} className="hidden" accept="image/*" />
               </div>
-
               <div className="grid grid-cols-2 gap-5">
                 <div className={modernInputGroup}>
                   <label className={modernLabel}>Ad</label>
@@ -257,8 +293,8 @@ const ProfilePage = () => {
         document.body
       )}
 
+      {/* EDIT CAR MODAL */}
       {isEditCarOpen && editingCar && createPortal(
-        // Z-Index increased to 10001 to stay above Navbar (9000)
         <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white dark:bg-gray-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl scale-100 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto custom-scrollbar">
              <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-800 z-10">
@@ -302,9 +338,8 @@ const ProfilePage = () => {
                   </div>
                </div>
 
-               {/* Added Delete button next to Save for convenience and alternative option */}
                <div className="flex gap-3 mt-4">
-                  <button type="button" onClick={() => handleDeleteFromModal(editingCar.id)} className="flex-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 py-3.5 rounded-xl font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center justify-center gap-2 border border-red-200 dark:border-red-800">
+                  <button type="button" onClick={() => confirmDeleteCar(null, editingCar.id)} className="flex-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 py-3.5 rounded-xl font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center justify-center gap-2 border border-red-200 dark:border-red-800">
                     <Trash2 size={18} /> Sil
                   </button>
                   <button type="button" onClick={handleSaveCar} className="flex-[2] bg-primary-600 text-white py-3.5 rounded-xl font-bold hover:bg-primary-700 transition-colors flex items-center justify-center gap-2">
@@ -381,7 +416,11 @@ const ProfilePage = () => {
                         <button type="button" onClick={() => openEditCarModal(car)} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors font-medium text-sm">
                             <Edit size={16} /> Düzenle
                         </button>
-                        <button type="button" onClick={(e) => handleDeleteCar(e, car.id)} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 border border-red-100 dark:border-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors font-medium text-sm">
+                        <button 
+                            type="button" 
+                            onClick={(e) => confirmDeleteCar(e, car.id)} 
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 border border-red-100 dark:border-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors font-medium text-sm"
+                        >
                             <Trash2 size={16} /> Sil
                         </button>
                         </div>
