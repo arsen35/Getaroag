@@ -343,6 +343,89 @@ const ListCarPage = () => {
                    <div className="flex gap-4 mt-8">
                     <button 
                       type="button" 
+                      onClick={() => setStep(1)} // FIX: Now correctly goes back to step 1
+                      className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-4 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                    >
+                      Geri
+                    </button>
+                    <button 
+                      type="button" 
+                      disabled={!formData.fuelType || !formData.transmission} // FIX: Now checks correct fields
+                      onClick={() => setStep(3)} // FIX: Now correctly goes to step 3
+                      className="flex-[2] bg-primary-600 disabled:bg-gray-300 text-white py-4 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-none border border-white/30"
+                    >
+                      Devam Et
+                    </button>
+                  </div>
+                </div>
+              )}
+
+               {/* Step 3: Photo & Price */}
+               {step === 3 && (
+                <div className="space-y-8 animate-in slide-in-from-right-10 fade-in">
+                  
+                  {/* Image Upload */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 flex items-center">
+                      <Camera size={18} className="mr-2 text-primary-600"/> Araç Fotoğrafı
+                    </label>
+                    
+                    <div 
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`
+                        border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all bg-white
+                        ${formData.imagePreview ? 'border-primary-500' : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50'}
+                      `}
+                    >
+                      <input 
+                        type="file" 
+                        ref={fileInputRef}
+                        className="hidden" 
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                      />
+                      
+                      {formData.imagePreview ? (
+                        <div className="relative">
+                          <img src={formData.imagePreview} alt="Preview" className="w-full h-64 object-cover rounded-lg" />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity rounded-lg">
+                            <span className="text-white font-medium flex items-center"><Upload size={16} className="mr-2"/> Değiştir</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-6">
+                           <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mb-4 text-primary-600">
+                             <Upload size={32} />
+                           </div>
+                           <p className="text-gray-900 font-medium">Fotoğraf Yüklemek için Tıkla</p>
+                           <p className="text-gray-500 text-sm mt-1">veya sürükleyip bırak</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Price Input */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 flex items-center">
+                      <DollarSign size={18} className="mr-2 text-primary-600"/> Günlük Kiralama Ücreti
+                    </label>
+                    <div className="relative">
+                       <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 font-bold text-lg">₺</span>
+                       <input 
+                        type="number" 
+                        placeholder="Örn: 1500"
+                        className={`${inputClassName} pl-10 text-lg font-bold`}
+                        value={formData.pricePerDay}
+                        onChange={(e) => setFormData({...formData, pricePerDay: e.target.value})}
+                      />
+                      <span className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">/ gün</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2 ml-1">Önerilen fiyat: ₺1200 - ₺2000 arası</p>
+                  </div>
+
+                   <div className="flex gap-4 mt-8">
+                    <button 
+                      type="button" 
                       onClick={() => setStep(2)}
                       className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-4 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                     >

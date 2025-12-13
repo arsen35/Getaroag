@@ -25,7 +25,7 @@ const ProfilePage = () => {
     { id: 102, name: 'Fiat Egea (2022)', price: 1100, pricePerDay: 1100, earnings: 2200, status: 'Pending', image: 'https://images.unsplash.com/photo-1503376763036-066120622c74?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' }
   ];
 
-  // State for listed cars with Robust Persistence
+  // State for listed cars
   const [myCars, setMyCars] = useState<any[]>(() => {
     try {
       const savedCars = localStorage.getItem('myCars');
@@ -111,7 +111,6 @@ const ProfilePage = () => {
   };
 
   const handleDeleteCar = (e: React.MouseEvent | null, id: number | string) => {
-    // Safety checks
     if (e) {
        e.preventDefault();
        e.stopPropagation();
@@ -119,18 +118,10 @@ const ProfilePage = () => {
     
     if(window.confirm("Bu aracı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")) {
       const targetId = String(id);
-      
-      // Filter out the car
       const newCars = myCars.filter(c => String(c.id) !== targetId);
 
-      // 1. Update State to reflect change in UI
       setMyCars(newCars);
-
-      // 2. Update LocalStorage IMMEDIATELY (Don't wait for useEffect)
-      // This is crucial for fixing the "can't delete" bug
       localStorage.setItem('myCars', JSON.stringify(newCars));
-
-      // 3. Notify other tabs/components
       window.dispatchEvent(new Event('storage'));
     }
   };
