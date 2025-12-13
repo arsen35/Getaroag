@@ -36,11 +36,9 @@ const ProfilePage = () => {
     }
   });
 
-  // Persist cars to localStorage whenever they change
+  // Sync to localStorage whenever state changes
   useEffect(() => {
-    if (myCars) {
-        localStorage.setItem('myCars', JSON.stringify(myCars));
-    }
+     localStorage.setItem('myCars', JSON.stringify(myCars));
   }, [myCars]);
 
   // State for Wallet Balance
@@ -110,27 +108,22 @@ const ProfilePage = () => {
     }
     
     if(window.confirm("Bu aracı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")) {
-      // Use functional update for state consistency
-      setMyCars(prevCars => {
-          // Force string comparison to avoid number/string mismatch
-          const carId = String(id);
-          const newCars = prevCars.filter(c => String(c.id) !== carId);
-          // Explicitly save to localStorage immediately to prevent sync issues
-          localStorage.setItem('myCars', JSON.stringify(newCars));
-          return newCars;
-      });
+      // Force string comparison for safety
+      const targetId = String(id);
+      const newCars = myCars.filter(c => String(c.id) !== targetId);
+      setMyCars(newCars);
+      // Direct save to ensure sync
+      localStorage.setItem('myCars', JSON.stringify(newCars));
     }
   };
 
   // Helper for deleting from inside the modal
   const handleDeleteFromModal = (id: number | string) => {
     if(window.confirm("Bu aracı silmek istediğinize emin misiniz?")) {
-        setMyCars(prevCars => {
-            const carId = String(id);
-            const newCars = prevCars.filter(c => String(c.id) !== carId);
-            localStorage.setItem('myCars', JSON.stringify(newCars));
-            return newCars;
-        });
+        const targetId = String(id);
+        const newCars = myCars.filter(c => String(c.id) !== targetId);
+        setMyCars(newCars);
+        localStorage.setItem('myCars', JSON.stringify(newCars));
         setIsEditCarOpen(false);
         setEditingCar(null);
     }

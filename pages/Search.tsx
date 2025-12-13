@@ -37,12 +37,37 @@ const SearchPage = () => {
       fuelTypes: [] as string[]
   });
 
-  // Load Favorites on Mount
+  // Combined Cars State (Mock + Local Storage)
+  const [allCars, setAllCars] = useState<Car[]>([]);
+
+  // Load Cars and Favorites
   useEffect(() => {
+    // 1. Load Favorites
     const savedFavs = localStorage.getItem('favorites');
     if (savedFavs) {
       setFavorites(JSON.parse(savedFavs));
     }
+
+    // 2. Load and Merge Cars
+    const loadCars = () => {
+        let localCars: Car[] = [];
+        try {
+            const stored = localStorage.getItem('myCars');
+            if (stored) {
+                localCars = JSON.parse(stored);
+            }
+        } catch (e) {
+            console.error("Error loading local cars", e);
+        }
+        // Combine static mock data with user listed cars
+        setAllCars([...MOCK_CARS, ...localCars]);
+    };
+
+    loadCars();
+
+    // Listen for storage events (in case user lists a car in another tab)
+    window.addEventListener('storage', loadCars);
+    return () => window.removeEventListener('storage', loadCars);
   }, []);
 
   // Toggle Favorite Handler
@@ -71,8 +96,8 @@ const SearchPage = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter Logic - Ensure this runs on every render
-  const filteredCars = MOCK_CARS
+  // Filter Logic - Use 'allCars' instead of MOCK_CARS
+  const filteredCars = allCars
     .filter(car => {
         // Simple Type Filter
         if (selectedType && car.type !== selectedType) return false;
@@ -81,6 +106,16 @@ const SearchPage = () => {
         if (advancedFilters.brands.length > 0 && !advancedFilters.brands.includes(car.brand)) return false;
         if (advancedFilters.transmissions.length > 0 && !advancedFilters.transmissions.includes(car.transmission)) return false;
         if (advancedFilters.fuelTypes.length > 0 && !advancedFilters.fuelTypes.includes(car.fuelType)) return false;
+
+        // Location Filter (from Home page search)
+        if (state?.location && car.location?.city) {
+            // Simple string includes check
+            if (!car.location.city.toLowerCase().includes(state.location.toLowerCase())) {
+                // If specific location doesn't match, maybe show all if location is generic? 
+                // For now, strict filter if location provided
+                return false;
+            }
+        }
 
         return true;
     })
@@ -136,7 +171,12 @@ const SearchPage = () => {
     if (markerLayerRef.current) {
       markerLayerRef.current.clearLayers();
 
+      // Adjust map view to fit markers if there are results
+      const bounds = L.latLngBounds([]);
+
       filteredCars.forEach(car => {
+        if (!car.location || !car.location.lat || !car.location.lng) return;
+
         const priceHtml = `
           <div class="bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-1 rounded-full shadow-lg font-bold text-sm border-2 border-primary-600 hover:scale-110 transition-transform whitespace-nowrap">
              ₺${car.pricePerDay}
@@ -153,6 +193,7 @@ const SearchPage = () => {
         });
 
         const marker = L.marker([car.location.lat, car.location.lng], { icon });
+        bounds.extend([car.location.lat, car.location.lng]);
         
         const popupContent = `
           <div class="font-sans">
@@ -162,7 +203,7 @@ const SearchPage = () => {
              <div class="px-3 pb-3">
                <h3 class="font-bold text-lg text-gray-900 dark:text-white">${car.brand} ${car.model}</h3>
                <div class="flex items-center text-sm text-gray-500 mb-2">
-                 <span class="text-yellow-500 mr-1">★</span>${car.rating} • ${car.distance}
+                 <span class="text-yellow-500 mr-1">★</span>${car.rating || 5.0} • ${car.distance || '0km'}
                </div>
                <div class="flex justify-between items-end">
                  <div>
@@ -194,6 +235,11 @@ const SearchPage = () => {
 
         markerLayerRef.current.addLayer(marker);
       });
+
+      // Fit bounds if we have cars and map is ready
+      if (filteredCars.length > 0 && mapInstanceRef.current && bounds.isValid()) {
+         mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 13 });
+      }
     }
   }, [viewMode, filteredCars]); 
 
@@ -241,7 +287,7 @@ const SearchPage = () => {
               </button>
               {activeFilter === 'type' && (
                 <div className="absolute top-full mt-2 left-0 bg-white dark:bg-gray-800 shadow-xl dark:shadow-black/40 dark:border dark:border-gray-700 rounded-2xl border border-gray-100 p-2 min-w-[200px] z-[2001] animate-in slide-in-from-top-2">
-                  {['Economy', 'SUV', 'Compact', 'Premium'].map(type => (
+                  {['Economy', 'SUV', 'Compact', 'Premium', 'Sedan'].map(type => (
                     <button 
                       key={type}
                       onClick={() => { setSelectedType(type); setActiveFilter(null); }} 
@@ -318,7 +364,7 @@ const SearchPage = () => {
                 <div className="mb-6">
                     <h4 className="font-bold text-gray-800 dark:text-gray-200 mb-3">Vites Tipi</h4>
                     <div className="flex gap-2">
-                        {['Automatic', 'Manual'].map(trans => (
+                        {['Automatic', 'Manual', 'Yarı Otomatik'].map(trans => (
                              <button 
                                 key={trans}
                                 onClick={() => toggleAdvancedOption('transmissions', trans)}
@@ -338,7 +384,7 @@ const SearchPage = () => {
                 <div className="mb-6">
                     <h4 className="font-bold text-gray-800 dark:text-gray-200 mb-3">Yakıt Tipi</h4>
                     <div className="flex flex-wrap gap-2">
-                        {['Petrol', 'Diesel', 'Hybrid', 'Electric'].map(fuel => (
+                        {['Benzin', 'Dizel', 'Hibrit', 'Elektrik', 'Petrol', 'Diesel', 'Hybrid', 'Electric'].map(fuel => (
                              <button 
                                 key={fuel}
                                 onClick={() => toggleAdvancedOption('fuelTypes', fuel)}
@@ -391,7 +437,7 @@ const SearchPage = () => {
                 <div className="sm:w-48 h-48 sm:h-auto relative">
                   <img src={car.image} alt={car.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   <div className="absolute top-2 left-2 bg-white/90 backdrop-blur text-xs font-bold px-2 py-1 rounded-md text-gray-800">
-                    {car.distance} uzakta
+                    {car.distance || '0km'} uzakta
                   </div>
                 </div>
                 <div className="p-4 flex-1 flex flex-col justify-between">
@@ -402,14 +448,14 @@ const SearchPage = () => {
                         <p className="text-gray-500 dark:text-gray-400 text-sm">{car.year} • {car.transmission} • {car.fuelType}</p>
                       </div>
                       <div className="flex items-center bg-gray-50 dark:bg-gray-700 px-2 py-1 rounded text-sm font-bold text-gray-800 dark:text-gray-200">
-                        ★ {car.rating}
+                        ★ {car.rating || 5.0}
                       </div>
                     </div>
                   </div>
                   
                   <div className="mt-4 flex justify-between items-end border-t dark:border-gray-700 pt-3">
                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {car.type}
+                        {car.type || 'Sedan'}
                      </div>
                      <div className="text-right">
                         <span className="block text-2xl font-bold text-primary-700 dark:text-primary-400">₺{car.pricePerDay}</span>
