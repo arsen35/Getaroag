@@ -76,26 +76,19 @@ const PaymentPage = () => {
                    <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">{car.year} • {car.transmission} • {car.fuelType}</p>
                    
                    <div className="space-y-4 border-t dark:border-gray-700 pt-4">
-                      {/* Trigger Calendar with this block */}
+                      {/* Unified Date Trigger */}
                       <div 
                         className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 p-2 rounded-lg transition-colors"
                         onClick={() => setIsCalendarOpen(true)}
                       >
-                          <div className="flex items-start gap-3 mb-3">
-                             <CalendarIcon className="text-primary-600 mt-1" size={20} />
-                             <div className="w-full">
-                                <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Alış Tarihi</label>
-                                <div className="font-medium text-gray-900 dark:text-white">
-                                   {new Date(pickupDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                </div>
-                             </div>
-                          </div>
                           <div className="flex items-start gap-3">
                              <CalendarIcon className="text-primary-600 mt-1" size={20} />
                              <div className="w-full">
-                                <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">İade Tarihi</label>
+                                <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Kiralama Tarihleri</label>
                                 <div className="font-medium text-gray-900 dark:text-white">
-                                   {new Date(returnDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                   {new Date(pickupDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}
+                                   {' - '}
+                                   {new Date(returnDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}
                                 </div>
                              </div>
                           </div>

@@ -96,6 +96,16 @@ const SearchPage = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Helper function to normalize text for Turkish/English search compatibility
+  // Converts "İstanbul" -> "istanbul" and "Istanbul" -> "istanbul" so they match
+  const normalizeText = (text: string) => {
+      if (!text) return "";
+      return text
+          .toLocaleLowerCase('tr-TR') // Handles İ -> i
+          .replace(/ı/g, 'i')         // Handles I -> ı -> i (unifies undotted i)
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // Remove remaining accents
+  };
+
   // Filter Logic - Use 'allCars' instead of MOCK_CARS
   const filteredCars = allCars
     .filter(car => {
@@ -109,10 +119,12 @@ const SearchPage = () => {
 
         // Location Filter (from Home page search)
         if (state?.location && car.location?.city) {
-            // Simple string includes check
-            if (!car.location.city.toLowerCase().includes(state.location.toLowerCase())) {
-                // If specific location doesn't match, maybe show all if location is generic? 
-                // For now, strict filter if location provided
+            const searchLoc = normalizeText(state.location);
+            const carLoc = normalizeText(car.location.city);
+            
+            // Allow partial matches (e.g. searching "Kadıköy" might match "İstanbul" if logic was reversed, 
+            // but here we check if the car's city contains the search term or vice versa for flexibility)
+            if (!carLoc.includes(searchLoc) && !searchLoc.includes(carLoc)) {
                 return false;
             }
         }

@@ -17,7 +17,7 @@ export const MOCK_CARS: Car[] = [
     distance: '300m',
     features: ['Bluetooth', 'GPS'],
     image: 'https://images.unsplash.com/photo-1621007947382-bb3c3968e3bb?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-    location: { city: 'Istanbul', lat: 41.0082, lng: 28.9784 }
+    location: { city: 'İstanbul', lat: 41.0082, lng: 28.9784 }
   },
   {
     id: 2,
@@ -35,7 +35,7 @@ export const MOCK_CARS: Car[] = [
     distance: '1.2km',
     features: ['Sunroof', 'Leather Seats'],
     image: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-    location: { city: 'Istanbul', lat: 41.0150, lng: 28.9850 }
+    location: { city: 'İstanbul', lat: 41.0150, lng: 28.9850 }
   },
   {
     id: 3,
@@ -53,7 +53,7 @@ export const MOCK_CARS: Car[] = [
     distance: '500m',
     features: ['Apple CarPlay'],
     image: 'https://images.unsplash.com/photo-1503376763036-066120622c74?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-    location: { city: 'Istanbul', lat: 41.0200, lng: 28.9600 }
+    location: { city: 'İstanbul', lat: 41.0200, lng: 28.9600 }
   },
   {
     id: 4,
@@ -71,6 +71,6 @@ export const MOCK_CARS: Car[] = [
     distance: '2km',
     features: ['Autopilot', 'Heated Seats'],
     image: 'https://images.unsplash.com/photo-1555215695-3004980adade?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-    location: { city: 'Istanbul', lat: 41.0300, lng: 28.9900 }
+    location: { city: 'İstanbul', lat: 41.0300, lng: 28.9900 }
   }
 ];

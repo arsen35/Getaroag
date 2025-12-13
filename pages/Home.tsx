@@ -193,47 +193,30 @@ const HomePage = () => {
                   )}
                 </div>
                 
-                {/* Date Inputs - Modernized & Thinner */}
-                <div className="flex gap-3">
-                  {/* Pickup Trigger */}
-                  <div 
-                    className="relative flex-1 group h-14 cursor-pointer"
-                    onClick={() => setIsCalendarOpen(true)}
-                  >
+                {/* Single Date Trigger Input */}
+                <div 
+                  className="relative group h-14 cursor-pointer"
+                  onClick={() => setIsCalendarOpen(true)}
+                >
                     <div className="absolute inset-0 w-full h-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 group-hover:border-primary-500 rounded-xl flex items-center pl-3 pr-3 transition-colors">
-                       <div className="flex items-center gap-3 w-full">
-                           <div className="p-1.5 bg-gray-50 dark:bg-gray-700 rounded-lg text-gray-500 group-hover:text-primary-600 transition-colors">
-                               <CalendarIcon size={18} />
-                           </div>
-                           <div className="flex flex-col">
-                               <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wide leading-none mb-0.5">Alış Tarihi</span>
-                               <span className={`text-sm font-semibold truncate ${pickup ? 'text-gray-900 dark:text-white' : 'text-gray-400 font-normal'}`}>
-                                 {pickup ? new Date(pickup).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }) : 'Tarih Seç'}
-                               </span>
-                           </div>
-                       </div>
+                        <div className="flex items-center gap-3 w-full">
+                            <div className="p-1.5 bg-gray-50 dark:bg-gray-700 rounded-lg text-gray-500 group-hover:text-primary-600 transition-colors">
+                                <CalendarIcon size={18} />
+                            </div>
+                            <div className="flex flex-col flex-1">
+                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wide leading-none mb-0.5">Kiralama Tarihleri</span>
+                                <span className={`text-sm font-semibold truncate ${pickup && dropoff ? 'text-gray-900 dark:text-white' : 'text-gray-400 font-normal'}`}>
+                                    {pickup && dropoff ? (
+                                        <div className="flex items-center gap-2">
+                                            <span>{new Date(pickup).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}</span>
+                                            <span className="text-gray-300 dark:text-gray-600">→</span>
+                                            <span>{new Date(dropoff).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}</span>
+                                        </div>
+                                    ) : 'Tarih Aralığı Seç'}
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                  </div>
-                  
-                  {/* Dropoff Trigger */}
-                  <div 
-                    className="relative flex-1 group h-14 cursor-pointer"
-                    onClick={() => setIsCalendarOpen(true)}
-                  >
-                     <div className="absolute inset-0 w-full h-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 group-hover:border-primary-500 rounded-xl flex items-center pl-3 pr-3 transition-colors">
-                       <div className="flex items-center gap-3 w-full">
-                           <div className="p-1.5 bg-gray-50 dark:bg-gray-700 rounded-lg text-gray-500 group-hover:text-primary-600 transition-colors">
-                               <CalendarIcon size={18} />
-                           </div>
-                           <div className="flex flex-col">
-                               <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wide leading-none mb-0.5">İade Tarihi</span>
-                               <span className={`text-sm font-semibold truncate ${dropoff ? 'text-gray-900 dark:text-white' : 'text-gray-400 font-normal'}`}>
-                                 {dropoff ? new Date(dropoff).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }) : 'Tarih Seç'}
-                               </span>
-                           </div>
-                       </div>
-                    </div>
-                  </div>
                 </div>
                 
                 <button
