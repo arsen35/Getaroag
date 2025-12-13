@@ -1,8 +1,63 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Car, UserCircle, LogOut, Sun, Moon, UserPlus, LogIn, Search, Plus, Heart, Home } from 'lucide-react';
 import { checkAuthStatus } from '../services/firebase';
 import { useTheme } from '../context/ThemeContext';
+
+// Extracted Component
+const MobileBottomNav = () => {
+  const location = useLocation();
+  const isLoggedIn = checkAuthStatus();
+  
+  const isActive = (path: string) => location.pathname === path;
+
+  return (
+    <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white dark:bg-gray-900 z-[9000] pb-safe transition-colors duration-300 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] dark:shadow-[0_-5px_20px_rgba(0,0,0,0.4)] border-t dark:border-gray-800">
+      <div className="relative flex justify-between items-center px-2 h-16">
+        
+        {/* Left Items */}
+        <Link to="/" className={`flex-1 flex flex-col items-center justify-center space-y-1 ${isActive('/') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'}`}>
+          <Home size={24} strokeWidth={isActive('/') ? 2.5 : 2} />
+          <span className="text-[10px] font-medium">Akış</span>
+        </Link>
+        
+        <Link to="/search" className={`flex-1 flex flex-col items-center justify-center space-y-1 ${isActive('/search') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'}`}>
+          <Search size={24} strokeWidth={isActive('/search') ? 2.5 : 2} />
+          <span className="text-[10px] font-medium">Ara</span>
+        </Link>
+
+        {/* Floating Center Button */}
+        <div className="relative -top-6">
+            <Link 
+              to="/list-car" 
+              className="flex items-center justify-center w-16 h-16 bg-primary-600 hover:bg-primary-700 text-white rounded-full shadow-lg shadow-primary-600/40 border-4 border-gray-50 dark:border-gray-900 transition-all transform active:scale-95"
+            >
+              <Plus size={32} />
+            </Link>
+        </div>
+
+        {/* Right Items */}
+        <Link to="/favorites" className={`flex-1 flex flex-col items-center justify-center space-y-1 ${isActive('/favorites') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'}`}>
+          <Heart size={24} className={isActive('/favorites') ? "fill-primary-600 dark:fill-primary-400" : ""}/>
+          <span className="text-[10px] font-medium">Favoriler</span>
+        </Link>
+
+        {isLoggedIn ? (
+          <Link to="/profile" className={`flex-1 flex flex-col items-center justify-center space-y-1 ${isActive('/profile') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'}`}>
+            <UserCircle size={24} strokeWidth={isActive('/profile') ? 2.5 : 2} />
+            <span className="text-[10px] font-medium">Profil</span>
+          </Link>
+        ) : (
+          <Link to="/login" className={`flex-1 flex flex-col items-center justify-center space-y-1 ${isActive('/login') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'}`}>
+            <LogIn size={24} strokeWidth={isActive('/login') ? 2.5 : 2} />
+            <span className="text-[10px] font-medium">Giriş</span>
+          </Link>
+        )}
+      </div>
+    </nav>
+  );
+};
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -44,6 +99,10 @@ const Navbar = () => {
               >
                 {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
               </button>
+
+              <Link to="/favorites" className={`text-gray-600 dark:text-gray-300 hover:text-primary-600 font-medium transition-colors px-3 py-2 flex items-center gap-1 ${isActive('/favorites') ? 'text-primary-600 dark:text-primary-400' : ''}`}>
+                 <Heart size={18} /> Favorilerim
+              </Link>
 
               <Link to="/search" className="text-gray-600 dark:text-gray-300 hover:text-primary-600 font-medium transition-colors px-3 py-2">Araç Kirala</Link>
               
@@ -115,50 +174,8 @@ const Navbar = () => {
           </button>
       </div>
 
-      {/* Mobile Bottom Navigation (Floating Button Style) */}
-      <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white dark:bg-gray-900 z-50 pb-safe transition-colors duration-300 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] dark:shadow-[0_-5px_20px_rgba(0,0,0,0.4)] border-t dark:border-gray-800">
-        <div className="relative flex justify-between items-center px-2 h-16">
-          
-          {/* Left Items */}
-          <Link to="/" className={`flex-1 flex flex-col items-center justify-center space-y-1 ${isActive('/') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'}`}>
-            <Home size={24} strokeWidth={isActive('/') ? 2.5 : 2} />
-            <span className="text-[10px] font-medium">Akış</span>
-          </Link>
-          
-          <Link to="/search" className={`flex-1 flex flex-col items-center justify-center space-y-1 ${isActive('/search') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'}`}>
-            <Search size={24} strokeWidth={isActive('/search') ? 2.5 : 2} />
-            <span className="text-[10px] font-medium">Ara</span>
-          </Link>
-
-          {/* Floating Center Button */}
-          <div className="relative -top-6">
-             <Link 
-               to="/list-car" 
-               className="flex items-center justify-center w-16 h-16 bg-primary-600 hover:bg-primary-700 text-white rounded-full shadow-lg shadow-primary-600/40 border-4 border-gray-50 dark:border-gray-900 transition-all transform active:scale-95"
-             >
-               <Plus size={32} />
-             </Link>
-          </div>
-
-          {/* Right Items */}
-          <Link to="/" className={`flex-1 flex flex-col items-center justify-center space-y-1 ${'text-gray-400 dark:text-gray-500'}`}>
-            <Heart size={24} />
-            <span className="text-[10px] font-medium">Favoriler</span>
-          </Link>
-
-          {isLoggedIn ? (
-            <Link to="/profile" className={`flex-1 flex flex-col items-center justify-center space-y-1 ${isActive('/profile') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'}`}>
-              <UserCircle size={24} strokeWidth={isActive('/profile') ? 2.5 : 2} />
-              <span className="text-[10px] font-medium">Profil</span>
-            </Link>
-          ) : (
-            <Link to="/login" className={`flex-1 flex flex-col items-center justify-center space-y-1 ${isActive('/login') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'}`}>
-              <LogIn size={24} strokeWidth={isActive('/login') ? 2.5 : 2} />
-              <span className="text-[10px] font-medium">Giriş</span>
-            </Link>
-          )}
-        </div>
-      </nav>
+      {/* Mobile Bottom Navigation - Rendered via Portal to escape transform contexts */}
+      {createPortal(<MobileBottomNav />, document.body)}
     </>
   );
 };

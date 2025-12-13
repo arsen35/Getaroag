@@ -44,7 +44,7 @@ const PaymentPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans transition-colors duration-300">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans transition-colors duration-300 pb-40 md:pb-0">
       <Navbar />
       
       {/* Integrated Custom Calendar */}

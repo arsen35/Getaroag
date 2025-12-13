@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { MapPin, Search, Shield, Users, Clock, Star, ArrowRight, Navigation, Calendar as CalendarIcon, Tag } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import CustomCalendar from '../components/CustomCalendar';
+import PullToRefresh from '../components/PullToRefresh';
 
 const TURKEY_CITIES = [
   "Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Amasya", "Artvin", "Aydın", "Balıkesir", "Bilecik", "Bingöl", "Bitlis", "Bolu", "Burdur", "Bursa", "Çanakkale", "Çankırı", "Çorum", "Denizli", "Diyarbakır", "Edirne", "Elazığ", "Erzincan", "Erzurum", "Eskişehir", "Gaziantep", "Giresun", "Gümüşhane", "Hakkari", "Hatay", "Isparta", "Mersin", "Kars", "Kastamonu", "Kayseri", "Kırklareli", "Kırşehir", "Kocaeli", "Konya", "Kütahya", "Malatya", "Manisa", "Kahramanmaraş", "Mardin", "Muğla", "Muş", "Nevşehir", "Niğde", "Ordu", "Rize", "Sakarya", "Samsun", "Siirt", "Sinop", "Sivas", "Tekirdağ", "Tokat", "Trabzon", "Tunceli", "Şanlıurfa", "Uşak", "Van", "Yozgat", "Zonguldak", "Aksaray", "Bayburt", "Karaman", "Kırıkkale", "Batman", "Şırnak", "Bartın", "Ardahan", "Iğdır", "Yalova", "Karabük", "Kilis", "Osmaniye", "Düzce"
@@ -100,6 +101,7 @@ const HomePage = () => {
   const inputClass = "w-full pl-10 pr-4 py-3.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-primary-500 rounded-xl focus:outline-none transition-all font-medium text-gray-900 dark:text-white placeholder-gray-500 shadow-sm text-sm";
 
   return (
+    <PullToRefresh>
     <div className="min-h-screen bg-white dark:bg-gray-900 font-sans transition-colors duration-300 pb-20 md:pb-0">
       <Navbar />
       
@@ -323,6 +325,7 @@ const HomePage = () => {
         </div>
       </div>
     </div>
+    </PullToRefresh>
   );
 };
 

@@ -47,15 +47,10 @@ const ListCarPage = () => {
       return;
     }
 
-    const originalText = "Konumumu Bul";
-    // Optional: Visual loading state logic could be added here if needed, 
-    // but for now we'll just set the city when it resolves.
-
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
         try {
-          // OpenStreetMap Nominatim API (Free Reverse Geocoding)
           const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=tr`);
           const data = await response.json();
           
@@ -95,9 +90,42 @@ const ListCarPage = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Submitting car:", formData);
-    // In a real app, you would upload the image to storage (e.g. Firebase Storage) here
-    alert("Aracınız başarıyla listelendi! Onay sürecinden sonra yayınlanacaktır.");
+    
+    // Create new car object conforming to what Profile page expects
+    const newCar = {
+      id: Date.now(), // Unique numeric ID
+      name: `${formData.brand} ${formData.model} (${formData.year})`,
+      brand: formData.brand,
+      model: formData.model,
+      year: parseInt(formData.year),
+      price: parseInt(formData.pricePerDay), // Profile uses 'price'
+      earnings: 0,
+      status: 'Pending', // Default status is Pending
+      image: formData.imagePreview || 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+      location: formData.city,
+      transmission: formData.transmission,
+      fuelType: formData.fuelType
+    };
+
+    // Get existing cars from localStorage or initialize empty array
+    // Note: Profile page also initializes this, but we need to handle the case where ListCar is visited first or concurrently
+    const existingCarsJson = localStorage.getItem('myCars');
+    let existingCars = [];
+    if (existingCarsJson) {
+      existingCars = JSON.parse(existingCarsJson);
+    } else {
+      // If no cars exist in storage, we might want to include the initial mock cars from Profile 
+      // OR just start fresh. Let's start fresh + this new car to be safe, 
+      // or simply append. To keep sync with Profile's MOCK_DATA logic, 
+      // ideally we check if it's initialized. 
+      // For simplicity, we just create the array. Profile page will merge if needed.
+      existingCars = []; 
+    }
+
+    const updatedCars = [...existingCars, newCar];
+    localStorage.setItem('myCars', JSON.stringify(updatedCars));
+
+    alert("Aracınız başarıyla listelendi! Profilinizde görebilirsiniz.");
     navigate('/profile');
   };
 
