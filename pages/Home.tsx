@@ -55,18 +55,27 @@ const HomePage = () => {
     setIsLoadingLocation(true);
     setLocation("Konum alınıyor (GPS)...");
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
+    const successCallback = async (position: GeolocationPosition) => {
         const { latitude, longitude } = position.coords;
         try {
-          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=tr`);
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1&accept-language=tr`);
           const data = await response.json();
           
           if (data && data.address) {
-            const city = data.address.province || data.address.city || data.address.town || data.address.state;
-            const district = data.address.suburb || data.address.district || data.address.county || "";
+            const addr = data.address;
+            const city = addr.province || addr.city || addr.state || addr.region;
+            
+            // Detailed District Logic
+            let parts = [];
+            if (addr.suburb) parts.push(addr.suburb);
+            if (addr.neighbourhood && addr.neighbourhood !== addr.suburb) parts.push(addr.neighbourhood);
+            if (addr.district && !parts.includes(addr.district)) parts.push(addr.district);
+            if (addr.town && !parts.includes(addr.town)) parts.push(addr.town);
+
+            const district = parts.length > 0 ? parts[0] : "";
+            
             const fullLocation = district ? `${district}, ${city}` : city;
-            setLocation(fullLocation || "Konum Bulundu");
+            setLocation(fullLocation || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
           } else {
             setLocation(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
           }
@@ -77,16 +86,30 @@ const HomePage = () => {
           setIsLoadingLocation(false);
           setShowCityDropdown(false);
         }
-      },
-      (error) => {
-        setIsLoadingLocation(false);
-        console.error("GPS Hatası:", error);
-        if (error.code === error.PERMISSION_DENIED) {
-           alert("Konum iznini reddettiniz.");
-           setLocation("");
-        }
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
+    };
+
+    const errorCallback = (error: GeolocationPositionError) => {
+        console.warn("High accuracy GPS failed, trying low accuracy...", error.message);
+        navigator.geolocation.getCurrentPosition(
+            successCallback,
+            (finalError) => {
+                setIsLoadingLocation(false);
+                let msg = "Konum alınamadı.";
+                if(finalError.code === finalError.PERMISSION_DENIED) msg = "Konum izni reddedildi.";
+                else if(finalError.code === finalError.TIMEOUT) msg = "Zaman aşımı.";
+                
+                alert(msg + " Lütfen şehri manuel seçiniz.");
+                setLocation("");
+            },
+            { enableHighAccuracy: false, timeout: 20000, maximumAge: 0 }
+        );
+    };
+
+    // Try High Accuracy First
+    navigator.geolocation.getCurrentPosition(
+      successCallback,
+      errorCallback,
+      { enableHighAccuracy: true, timeout: 5000 }
     );
   };
 

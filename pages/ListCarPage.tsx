@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { Car, Fuel, Settings, CheckCircle, Navigation, Upload, DollarSign, Camera, MapPin } from 'lucide-react';
+import { Car, Fuel, Settings, CheckCircle, Navigation, Upload, DollarSign, Camera, MapPin, Search } from 'lucide-react';
 import { CAR_BRANDS } from '../data/cars';
 import { checkAuthStatus } from '../services/firebase';
 
@@ -10,33 +10,25 @@ const TURKEY_CITIES = [
   "Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Amasya", "Artvin", "Aydın", "Balıkesir", "Bilecik", "Bingöl", "Bitlis", "Bolu", "Burdur", "Bursa", "Çanakkale", "Çankırı", "Çorum", "Denizli", "Diyarbakır", "Edirne", "Elazığ", "Erzincan", "Erzurum", "Eskişehir", "Gaziantep", "Giresun", "Gümüşhane", "Hakkari", "Hatay", "Isparta", "Mersin", "Kars", "Kastamonu", "Kayseri", "Kırklareli", "Kırşehir", "Kocaeli", "Konya", "Kütahya", "Malatya", "Manisa", "Kahramanmaraş", "Mardin", "Muğla", "Muş", "Nevşehir", "Niğde", "Ordu", "Rize", "Sakarya", "Samsun", "Siirt", "Sinop", "Sivas", "Tekirdağ", "Tokat", "Trabzon", "Tunceli", "Şanlıurfa", "Uşak", "Van", "Yozgat", "Zonguldak", "Aksaray", "Bayburt", "Karaman", "Kırıkkale", "Batman", "Şırnak", "Bartın", "Ardahan", "Iğdır", "Yalova", "Karabük", "Kilis", "Osmaniye", "Düzce"
 ].sort();
 
-// Mock coordinates for fallback
-const CITY_COORDINATES: Record<string, {lat: number, lng: number}> = {
-  "İstanbul": { lat: 41.0082, lng: 28.9784 },
-  "Ankara": { lat: 39.9334, lng: 32.8597 },
-  "İzmir": { lat: 38.4192, lng: 27.1287 },
-  "Antalya": { lat: 36.8969, lng: 30.7133 },
-  "Bursa": { lat: 40.1885, lng: 29.0610 },
-  "Adana": { lat: 37.0000, lng: 35.3213 },
-};
-
 const ListCarPage = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Loading states
   const [isLocating, setIsLocating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [formData, setFormData] = useState({
     city: '',
-    district: '', // Added specific district/neighborhood
-    exactLat: null as number | null, // Store exact GPS lat
-    exactLng: null as number | null, // Store exact GPS lng
+    district: '', // Specific district/neighborhood
+    exactLat: null as number | null,
+    exactLng: null as number | null,
     brand: '',
     model: '',
     year: '',
     fuelType: '',
     transmission: '',
-    mileage: '',
     pricePerDay: '',
     image: null as File | null,
     imagePreview: ''
@@ -52,9 +44,9 @@ const ListCarPage = () => {
 
   const fuelTypes = ['Benzin', 'Dizel', 'Elektrik', 'Hibrit', 'LPG'];
   const transmissions = ['Manuel', 'Otomatik', 'Yarı Otomatik'];
-
   const availableModels = formData.brand ? (CAR_BRANDS as any)[formData.brand] || [] : [];
 
+  // --- ROBUST GPS LOGIC (High Accuracy -> Low Accuracy Fallback) ---
   const handleCurrentLocation = () => {
     if (!navigator.geolocation) {
       alert("Tarayıcınız konum özelliğini desteklemiyor.");
@@ -62,79 +54,80 @@ const ListCarPage = () => {
     }
 
     setIsLocating(true);
+    setFormData(prev => ({ ...prev, exactLat: null, exactLng: null })); 
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        try {
-          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1&accept-language=tr`);
-          const data = await response.json();
+    const successCallback = async (position: GeolocationPosition) => {
+      const { latitude, longitude } = position.coords;
+      try {
+        // Fetch address details from Nominatim
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1&accept-language=tr`);
+        const data = await response.json();
+        
+        if (data && data.address) {
+          const addr = data.address;
           
-          if (data && data.address) {
-            const addr = data.address;
-            
-            // Prioritize Province -> City -> State
-            const city = addr.province || addr.city || addr.state || addr.region;
-            
-            // Detailed District Logic: Check all possible fields from most specific to least
-            // Neighbourhood (Mahalle) -> Suburb (Semt) -> District (İlçe) -> Town -> County
-            let district = 
-                addr.neighbourhood || 
-                addr.suburb || 
-                addr.district || 
-                addr.town || 
-                addr.county || 
-                addr.village || 
-                "";
-            
-            // If we have a district but it's the same as city, try to find something else or leave blank
-            if (district === city) {
-                 district = addr.suburb || addr.neighbourhood || "";
-            }
+          // 1. Determine City (Province)
+          const city = addr.province || addr.city || addr.state || addr.region;
+          
+          // 2. Determine District / Neighborhood (The granular part)
+          // We check multiple fields because OSM data varies by region
+          let parts = [];
+          if (addr.suburb) parts.push(addr.suburb);
+          if (addr.neighbourhood && addr.neighbourhood !== addr.suburb) parts.push(addr.neighbourhood);
+          if (addr.quarter && !parts.includes(addr.quarter)) parts.push(addr.quarter);
+          if (addr.district && !parts.includes(addr.district)) parts.push(addr.district);
+          if (addr.town && !parts.includes(addr.town)) parts.push(addr.town);
+          
+          // Take the most relevant parts (usually first 2 are enough: Mahalle, İlçe)
+          const districtStr = parts.slice(0, 2).join(', ');
 
-            // Append detailed address part if available (e.g. "Alsancak, Konak")
-            if (addr.suburb && addr.district && addr.suburb !== addr.district) {
-                district = `${addr.suburb}, ${addr.district}`;
-            }
-
-            setFormData(prev => ({ 
-                ...prev, 
-                city: city || prev.city,
-                district: district, 
-                exactLat: latitude, 
-                exactLng: longitude 
-            }));
-          }
-        } catch (error) {
-          console.error("Adres çözümlenemedi:", error);
-          // Fallback: Use coords even if address name fails
           setFormData(prev => ({ 
-            ...prev, 
-            city: 'Konum İşaretlendi',
-            district: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-            exactLat: latitude,
-            exactLng: longitude
+              ...prev, 
+              city: city || prev.city,
+              district: districtStr, 
+              exactLat: latitude, 
+              exactLng: longitude 
           }));
-        } finally {
-            setIsLocating(false);
         }
-      },
-      (error) => {
-        setIsLocating(false);
-        console.error("GPS Hatası:", error);
-        if (error.code === error.PERMISSION_DENIED) {
-           alert("Konum izni reddedildi. Tarayıcı ayarlarından konuma izin verin veya bilgileri manuel girin.");
-        } else if (error.code === error.TIMEOUT) {
-           alert("Konum alma zaman aşımına uğradı. Masaüstü cihazlarda bazen Wifi konumu geç yanıt verebilir. Lütfen tekrar deneyin.");
-        } else {
-           alert(`Konum alınamadı (Hata Kodu: ${error.code}). Lütfen internet bağlantınızı kontrol edin.`);
-        }
-      },
-      { 
-          enableHighAccuracy: true, 
-          timeout: 30000, // Increased to 30s for Desktop/WiFi lag
-          maximumAge: 0 
+      } catch (error) {
+        console.error("Adres çözümlenemedi:", error);
+        // Fallback: Just save coordinates even if address lookup fails
+        setFormData(prev => ({ 
+          ...prev, 
+          city: prev.city || 'Konum İşaretlendi',
+          exactLat: latitude,
+          exactLng: longitude
+        }));
+      } finally {
+          setIsLocating(false);
       }
+    };
+
+    const errorCallback = (error: GeolocationPositionError) => {
+      console.warn("High accuracy GPS failed, trying low accuracy...", error.message);
+      
+      // Fallback to Low Accuracy (better for Desktop/WiFi/Office Networks)
+      navigator.geolocation.getCurrentPosition(
+        successCallback,
+        (finalError) => {
+           setIsLocating(false);
+           console.error("GPS Final Error:", finalError);
+           // Friendly error mapping
+           let msg = "Konum alınamadı.";
+           if(finalError.code === finalError.PERMISSION_DENIED) msg = "Konum izni reddedildi. Tarayıcı ayarlarından izin verin.";
+           else if(finalError.code === finalError.TIMEOUT) msg = "Konum alma zaman aşımına uğradı.";
+           
+           alert(msg + " Lütfen bilgileri manuel giriniz.");
+        },
+        { enableHighAccuracy: false, timeout: 20000, maximumAge: 0 }
+      );
+    };
+
+    // First try High Accuracy with a short timeout
+    navigator.geolocation.getCurrentPosition(
+      successCallback,
+      errorCallback,
+      { enableHighAccuracy: true, timeout: 5000 } // 5s timeout for GPS, then fallback to Wifi
     );
   };
 
@@ -149,38 +142,54 @@ const ListCarPage = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     
-    let finalLocation;
+    let finalLat = formData.exactLat;
+    let finalLng = formData.exactLng;
 
-    // PRIORITY: Use exact GPS coordinates if available
-    if (formData.exactLat && formData.exactLng) {
-        finalLocation = {
-            city: formData.city, // Keep city name for filtering
-            district: formData.district, // Store district info
-            lat: formData.exactLat,
-            lng: formData.exactLng
-        };
-    } else {
-        // FALLBACK: Generate random coordinate around city center only if GPS wasn't used
-        const coords = CITY_COORDINATES[formData.city] || { 
-            lat: 39.0 + (Math.random() * 2), 
-            lng: 35.0 + (Math.random() * 2) 
-        };
-        finalLocation = {
-            city: formData.city,
-            district: formData.district,
-            lat: coords.lat + (Math.random() * 0.05 - 0.025),
-            lng: coords.lng + (Math.random() * 0.05 - 0.025)
-        };
+    // --- GEOCODING FALLBACK FOR MANUAL ENTRIES ---
+    // If user typed an address but didn't use GPS, we try to fetch coords for that address
+    if ((!finalLat || !finalLng) && formData.city) {
+        try {
+            const query = `${formData.district ? formData.district + ', ' : ''}${formData.city}`;
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+            const results = await response.json();
+
+            if (results && results.length > 0) {
+                finalLat = parseFloat(results[0].lat);
+                finalLng = parseFloat(results[0].lon);
+            } else {
+                // Last Resort: Random jitter around generic city center
+                 const fallbackCoords: Record<string, {lat: number, lng: number}> = {
+                    "İstanbul": { lat: 41.0082, lng: 28.9784 },
+                    "Ankara": { lat: 39.9334, lng: 32.8597 },
+                    "İzmir": { lat: 38.4192, lng: 27.1287 },
+                    "Antalya": { lat: 36.8969, lng: 30.7133 },
+                    "Bursa": { lat: 40.1885, lng: 29.0610 },
+                    "Adana": { lat: 37.0000, lng: 35.3213 },
+                };
+                const cityCenter = fallbackCoords[formData.city] || { lat: 39.0, lng: 35.0 };
+                finalLat = cityCenter.lat + (Math.random() * 0.02);
+                finalLng = cityCenter.lng + (Math.random() * 0.02);
+            }
+        } catch (err) {
+            console.error("Geocoding failed", err);
+            finalLat = 39.0; finalLng = 35.0; // Default center of Turkey
+        }
     }
 
-    // Parse Price Safely
+    const finalLocation = {
+        city: formData.city,
+        district: formData.district,
+        lat: finalLat || 39.0,
+        lng: finalLng || 35.0
+    };
+
     const rawPrice = parseInt(formData.pricePerDay);
     const safePrice = isNaN(rawPrice) ? 0 : rawPrice;
 
-    // Create new car object
     const newCar = {
       id: Date.now(),
       name: `${formData.brand} ${formData.model}`,
@@ -193,17 +202,16 @@ const ListCarPage = () => {
       earnings: 0,
       status: 'Active', 
       image: formData.imagePreview || 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      location: finalLocation, // Uses EXACT coords if GPS was used
+      location: finalLocation,
       transmission: formData.transmission,
       fuelType: formData.fuelType,
       type: 'Sedan',
       rating: 5.0,
       reviews: 0,
-      distance: '0km', // In a real app, this would be calc'd relative to user
+      distance: '0km',
       features: ['Yeni İlan']
     };
 
-    // Get existing cars
     const existingCarsJson = localStorage.getItem('myCars');
     let existingCars = [];
     try {
@@ -214,10 +222,10 @@ const ListCarPage = () => {
 
     const updatedCars = [...existingCars, newCar];
     localStorage.setItem('myCars', JSON.stringify(updatedCars));
-
     window.dispatchEvent(new Event('storage'));
 
-    alert("Aracınız başarıyla listelendi! Tam konumunuz haritada işaretlendi.");
+    setIsSubmitting(false);
+    alert("Aracınız başarıyla listelendi! Konumunuz haritada işaretlendi.");
     navigate('/profile');
   };
 
@@ -257,7 +265,7 @@ const ListCarPage = () => {
                          className="text-primary-600 dark:text-primary-400 text-sm flex items-center hover:underline disabled:opacity-50"
                        >
                           {isLocating ? (
-                              <span className="flex items-center gap-1">Konum alınıyor...</span>
+                              <span className="flex items-center gap-1"><div className="animate-spin h-3 w-3 border-2 border-primary-600 border-t-transparent rounded-full mr-1"></div> Konum alınıyor...</span>
                           ) : (
                               <>
                                 <Navigation size={14} className="mr-1" /> Konumumu Bul (GPS)
@@ -274,9 +282,6 @@ const ListCarPage = () => {
                             onChange={(e) => setFormData({...formData, city: e.target.value})}
                             >
                             <option value="">Şehir Seçiniz</option>
-                            {formData.city && !TURKEY_CITIES.includes(formData.city) && !PRIORITY_CITIES.includes(formData.city) && (
-                                <option value={formData.city}>{formData.city}</option>
-                            )}
                             <optgroup label="Popüler Şehirler">
                                 {PRIORITY_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
                             </optgroup>
@@ -289,19 +294,18 @@ const ListCarPage = () => {
                             <MapPin size={18} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
                             <input 
                                 type="text"
-                                placeholder="İlçe / Semt (Örn: Alsancak, Konak)"
+                                placeholder="İlçe / Semt / Mahalle"
                                 className={`${inputClassName} pl-10`}
                                 value={formData.district}
                                 onChange={(e) => setFormData({...formData, district: e.target.value})}
                             />
                         </div>
                     </div>
-                    {formData.exactLat && (
-                        <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1 mt-1 font-medium bg-green-50 dark:bg-green-900/20 p-2 rounded-lg">
-                            <CheckCircle size={14} /> 
-                            <span>Tam konum başarıyla alındı. ({formData.exactLat.toFixed(5)}, {formData.exactLng?.toFixed(5)})</span>
-                        </div>
-                    )}
+                    <p className="text-xs text-gray-500 mt-2">
+                        {formData.exactLat 
+                         ? <span className="text-green-600 flex items-center gap-1"><CheckCircle size={12}/> GPS ile nokta atışı konum alındı.</span>
+                         : "Konum butonunu kullanabilir veya İlçe/Mahalle bilgisini manuel girebilirsiniz."}
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -572,10 +576,11 @@ const ListCarPage = () => {
                       Geri
                     </button>
                     <button 
-                      type="submit" 
-                      className="flex-[2] bg-primary-600 text-white py-4 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-none border border-white/30"
+                      type="submit"
+                      disabled={isSubmitting} 
+                      className="flex-[2] bg-primary-600 disabled:bg-primary-400 text-white py-4 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-none border border-white/30 flex items-center justify-center gap-2"
                     >
-                      İlanı Yayınla
+                      {isSubmitting ? 'İşleniyor...' : 'İlanı Yayınla'}
                     </button>
                   </div>
                 </div>

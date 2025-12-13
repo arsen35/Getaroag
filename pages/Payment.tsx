@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { Shield, CheckCircle, CreditCard, Calendar as CalendarIcon } from 'lucide-react';
+import { Shield, CheckCircle, CreditCard, Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { Car } from '../types';
 import CustomCalendar from '../components/CustomCalendar';
 
@@ -16,6 +16,10 @@ const PaymentPage = () => {
   
   // Custom Calendar State
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  
+  // Payment Processing States
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   if (!car) {
     return (
@@ -34,21 +38,55 @@ const PaymentPage = () => {
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
   const days = diffDays > 0 ? diffDays : 1;
   
-  // Robust Price Check: Handle inconsistencies between 'price' and 'pricePerDay' from different data sources
+  // Robust Price Check
   const pricePerDay = Number(car.pricePerDay) || Number((car as any).price) || 0;
 
   const total = days * pricePerDay;
   const insurance = days * 150; // 150 TL per day insurance
   const grandTotal = total + insurance;
 
-  const handlePayment = () => {
-    alert("Ödeme başarıyla alındı! Rezervasyonunuz oluşturuldu.");
-    navigate('/profile');
+  const handlePayment = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsProcessing(true);
+
+    // Simulate API call
+    setTimeout(() => {
+        setIsProcessing(false);
+        setShowSuccessModal(true);
+        
+        // Redirect after showing success message
+        setTimeout(() => {
+            navigate('/profile');
+        }, 2500);
+    }, 2000);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans transition-colors duration-300 pb-40 md:pb-0">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans transition-colors duration-300 pb-40 md:pb-0 relative">
       <Navbar />
+      
+      {/* Success Modal Overlay */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm text-center animate-in zoom-in-95">
+                <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-6 text-green-600 dark:text-green-400">
+                    <CheckCircle size={48} strokeWidth={3} />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Ödeme Başarılı!</h2>
+                <p className="text-gray-500 dark:text-gray-400 mb-6">Rezervasyonunuz oluşturuldu. Araç sahibinin onayı bekleniyor.</p>
+                <div className="w-full bg-gray-100 dark:bg-gray-700 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-green-500 h-full animate-[progress_2s_ease-in-out_forwards]" style={{width: '0%'}}></div>
+                </div>
+                <p className="text-xs text-gray-400 mt-2">Profilinize yönlendiriliyorsunuz...</p>
+            </div>
+            <style>{`
+                @keyframes progress {
+                    0% { width: 0%; }
+                    100% { width: 100%; }
+                }
+            `}</style>
+        </div>
+      )}
       
       {/* Integrated Custom Calendar */}
       <CustomCalendar 
@@ -126,38 +164,43 @@ const PaymentPage = () => {
                    <CreditCard className="text-primary-600" /> Kredi Kartı Bilgileri
                 </h3>
                 
-                <form className="space-y-4">
+                <form onSubmit={handlePayment} className="space-y-4">
                    <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kart Üzerindeki İsim</label>
-                      <input type="text" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white" placeholder="Ad Soyad" />
+                      <input required type="text" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white" placeholder="Ad Soyad" />
                    </div>
                    <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kart Numarası</label>
-                      <input type="text" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white" placeholder="0000 0000 0000 0000" />
+                      <input required type="text" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white" placeholder="0000 0000 0000 0000" />
                    </div>
                    <div className="grid grid-cols-2 gap-4">
                       <div>
                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Son Kullanma Tarihi</label>
-                         <input type="text" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white" placeholder="AA/YY" />
+                         <input required type="text" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white" placeholder="AA/YY" />
                       </div>
                       <div>
                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">CVV</label>
-                         <input type="text" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white" placeholder="123" />
+                         <input required type="text" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white" placeholder="123" />
                       </div>
                    </div>
+
+                   <div className="mt-6 flex items-center gap-2 text-green-600 bg-green-50 dark:bg-green-900/20 p-3 rounded-xl text-sm">
+                      <Shield size={18} />
+                      <span>Ödemeniz 256-bit SSL sertifikası ile korunmaktadır.</span>
+                   </div>
+
+                   <button 
+                     type="submit"
+                     disabled={isProcessing}
+                     className="w-full bg-primary-600 disabled:bg-primary-400 text-white py-4 rounded-xl font-bold text-lg hover:bg-primary-700 transition-colors shadow-none border border-white/30 mt-6 flex items-center justify-center gap-2"
+                   >
+                     {isProcessing ? (
+                         <>
+                            <Loader2 className="animate-spin" /> İşleniyor...
+                         </>
+                     ) : `Ödemeyi Tamamla (₺${grandTotal})`}
+                   </button>
                 </form>
-
-                <div className="mt-6 flex items-center gap-2 text-green-600 bg-green-50 dark:bg-green-900/20 p-3 rounded-xl text-sm">
-                   <Shield size={18} />
-                   <span>Ödemeniz 256-bit SSL sertifikası ile korunmaktadır.</span>
-                </div>
-
-                <button 
-                  onClick={handlePayment}
-                  className="w-full bg-primary-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-primary-700 transition-colors shadow-none border border-white/30 mt-6"
-                >
-                  Ödemeyi Tamamla (₺{grandTotal})
-                </button>
              </div>
           </div>
         </div>
