@@ -67,19 +67,41 @@ const ListCarPage = () => {
       async (position) => {
         const { latitude, longitude } = position.coords;
         try {
-          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=tr`);
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1&accept-language=tr`);
           const data = await response.json();
           
           if (data && data.address) {
-            const city = data.address.province || data.address.city || data.address.town || data.address.state;
-            // Try to extract district/suburb info
-            const district = data.address.suburb || data.address.district || data.address.town || data.address.neighbourhood || "";
+            const addr = data.address;
             
+            // Prioritize Province -> City -> State
+            const city = addr.province || addr.city || addr.state || addr.region;
+            
+            // Detailed District Logic: Check all possible fields from most specific to least
+            // Neighbourhood (Mahalle) -> Suburb (Semt) -> District (İlçe) -> Town -> County
+            let district = 
+                addr.neighbourhood || 
+                addr.suburb || 
+                addr.district || 
+                addr.town || 
+                addr.county || 
+                addr.village || 
+                "";
+            
+            // If we have a district but it's the same as city, try to find something else or leave blank
+            if (district === city) {
+                 district = addr.suburb || addr.neighbourhood || "";
+            }
+
+            // Append detailed address part if available (e.g. "Alsancak, Konak")
+            if (addr.suburb && addr.district && addr.suburb !== addr.district) {
+                district = `${addr.suburb}, ${addr.district}`;
+            }
+
             setFormData(prev => ({ 
                 ...prev, 
                 city: city || prev.city,
-                district: district, // Fill district automatically
-                exactLat: latitude, // Capture exact coords
+                district: district, 
+                exactLat: latitude, 
                 exactLng: longitude 
             }));
           }
@@ -89,6 +111,7 @@ const ListCarPage = () => {
           setFormData(prev => ({ 
             ...prev, 
             city: 'Konum İşaretlendi',
+            district: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
             exactLat: latitude,
             exactLng: longitude
           }));
@@ -102,12 +125,16 @@ const ListCarPage = () => {
         if (error.code === error.PERMISSION_DENIED) {
            alert("Konum izni reddedildi. Tarayıcı ayarlarından konuma izin verin veya bilgileri manuel girin.");
         } else if (error.code === error.TIMEOUT) {
-           alert("Konum alma zaman aşımına uğradı. Lütfen tekrar deneyin.");
+           alert("Konum alma zaman aşımına uğradı. Masaüstü cihazlarda bazen Wifi konumu geç yanıt verebilir. Lütfen tekrar deneyin.");
         } else {
-           alert("Konum alınamadı. Lütfen internet bağlantınızı kontrol edin.");
+           alert(`Konum alınamadı (Hata Kodu: ${error.code}). Lütfen internet bağlantınızı kontrol edin.`);
         }
       },
-      { enableHighAccuracy: true, timeout: 15000 }
+      { 
+          enableHighAccuracy: true, 
+          timeout: 30000, // Increased to 30s for Desktop/WiFi lag
+          maximumAge: 0 
+      }
     );
   };
 
@@ -262,7 +289,7 @@ const ListCarPage = () => {
                             <MapPin size={18} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
                             <input 
                                 type="text"
-                                placeholder="İlçe / Semt (Örn: Kadıköy)"
+                                placeholder="İlçe / Semt (Örn: Alsancak, Konak)"
                                 className={`${inputClassName} pl-10`}
                                 value={formData.district}
                                 onChange={(e) => setFormData({...formData, district: e.target.value})}
