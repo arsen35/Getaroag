@@ -345,15 +345,15 @@ const ListCarPage = () => {
                    <div className="flex gap-4 mt-8">
                     <button 
                       type="button" 
-                      onClick={() => setStep(1)}
+                      onClick={() => setStep(1)} // CORRECTED: Go back to Step 1
                       className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-4 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                     >
                       Geri
                     </button>
                     <button 
                       type="button" 
-                      disabled={!formData.fuelType || !formData.transmission}
-                      onClick={() => setStep(3)}
+                      disabled={!formData.fuelType || !formData.transmission} // CORRECTED: Check Step 2 data
+                      onClick={() => setStep(3)} // CORRECTED: Go to Step 3
                       className="flex-[2] bg-primary-600 disabled:bg-gray-300 text-white py-4 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-none border border-white/30"
                     >
                       Devam Et

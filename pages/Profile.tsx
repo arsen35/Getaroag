@@ -36,15 +36,6 @@ const ProfilePage = () => {
     }
   });
 
-  // Sync to localStorage whenever state changes
-  useEffect(() => {
-     if (myCars) {
-        localStorage.setItem('myCars', JSON.stringify(myCars));
-        // Dispatch event for other tabs or components like SearchPage
-        window.dispatchEvent(new Event('storage'));
-     }
-  }, [myCars]);
-
   // State for Wallet Balance
   const [balance, setBalance] = useState(5695.00);
 
@@ -112,6 +103,9 @@ const ProfilePage = () => {
     const updatedCars = myCars.map(c => String(c.id) === String(editingCar.id) ? updatedCarData : c);
 
     setMyCars(updatedCars);
+    localStorage.setItem('myCars', JSON.stringify(updatedCars));
+    window.dispatchEvent(new Event('storage'));
+    
     setIsEditCarOpen(false);
     setEditingCar(null);
   };
