@@ -72,12 +72,13 @@ const ListCarPage = () => {
           
           if (data && data.address) {
             const city = data.address.province || data.address.city || data.address.town || data.address.state;
+            // Try to extract district/suburb info
             const district = data.address.suburb || data.address.district || data.address.town || data.address.neighbourhood || "";
             
             setFormData(prev => ({ 
                 ...prev, 
                 city: city || prev.city,
-                district: district, // Fill district
+                district: district, // Fill district automatically
                 exactLat: latitude, // Capture exact coords
                 exactLng: longitude 
             }));
@@ -99,10 +100,14 @@ const ListCarPage = () => {
         setIsLocating(false);
         console.error("GPS Hatası:", error);
         if (error.code === error.PERMISSION_DENIED) {
-           alert("Konum izni reddedildi. Şehri manuel seçmelisiniz.");
+           alert("Konum izni reddedildi. Tarayıcı ayarlarından konuma izin verin veya bilgileri manuel girin.");
+        } else if (error.code === error.TIMEOUT) {
+           alert("Konum alma zaman aşımına uğradı. Lütfen tekrar deneyin.");
+        } else {
+           alert("Konum alınamadı. Lütfen internet bağlantınızı kontrol edin.");
         }
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 15000 }
     );
   };
 
@@ -131,7 +136,7 @@ const ListCarPage = () => {
             lng: formData.exactLng
         };
     } else {
-        // FALLBACK: Generate random coordinate around city center
+        // FALLBACK: Generate random coordinate around city center only if GPS wasn't used
         const coords = CITY_COORDINATES[formData.city] || { 
             lat: 39.0 + (Math.random() * 2), 
             lng: 35.0 + (Math.random() * 2) 
@@ -265,8 +270,9 @@ const ListCarPage = () => {
                         </div>
                     </div>
                     {formData.exactLat && (
-                        <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1 mt-1">
-                            <CheckCircle size={12} /> Tam konum koordinatları alındı ({formData.exactLat.toFixed(4)}, {formData.exactLng?.toFixed(4)})
+                        <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1 mt-1 font-medium bg-green-50 dark:bg-green-900/20 p-2 rounded-lg">
+                            <CheckCircle size={14} /> 
+                            <span>Tam konum başarıyla alındı. ({formData.exactLat.toFixed(5)}, {formData.exactLng?.toFixed(5)})</span>
                         </div>
                     )}
                   </div>
