@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { Car, Fuel, Settings, CheckCircle, Navigation, Upload, DollarSign, Camera } from 'lucide-react';
+import { Car, Fuel, Settings, CheckCircle, Navigation, Upload, DollarSign, Camera, MapPin } from 'lucide-react';
 import { CAR_BRANDS } from '../data/cars';
 import { checkAuthStatus } from '../services/firebase';
 
@@ -10,7 +10,7 @@ const TURKEY_CITIES = [
   "Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Amasya", "Artvin", "Aydın", "Balıkesir", "Bilecik", "Bingöl", "Bitlis", "Bolu", "Burdur", "Bursa", "Çanakkale", "Çankırı", "Çorum", "Denizli", "Diyarbakır", "Edirne", "Elazığ", "Erzincan", "Erzurum", "Eskişehir", "Gaziantep", "Giresun", "Gümüşhane", "Hakkari", "Hatay", "Isparta", "Mersin", "Kars", "Kastamonu", "Kayseri", "Kırklareli", "Kırşehir", "Kocaeli", "Konya", "Kütahya", "Malatya", "Manisa", "Kahramanmaraş", "Mardin", "Muğla", "Muş", "Nevşehir", "Niğde", "Ordu", "Rize", "Sakarya", "Samsun", "Siirt", "Sinop", "Sivas", "Tekirdağ", "Tokat", "Trabzon", "Tunceli", "Şanlıurfa", "Uşak", "Van", "Yozgat", "Zonguldak", "Aksaray", "Bayburt", "Karaman", "Kırıkkale", "Batman", "Şırnak", "Bartın", "Ardahan", "Iğdır", "Yalova", "Karabük", "Kilis", "Osmaniye", "Düzce"
 ].sort();
 
-// Mock coordinates for demo purposes to ensure pins show on map
+// Mock coordinates for fallback
 const CITY_COORDINATES: Record<string, {lat: number, lng: number}> = {
   "İstanbul": { lat: 41.0082, lng: 28.9784 },
   "Ankara": { lat: 39.9334, lng: 32.8597 },
@@ -24,9 +24,13 @@ const ListCarPage = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isLocating, setIsLocating] = useState(false);
   
   const [formData, setFormData] = useState({
     city: '',
+    district: '', // Added specific district/neighborhood
+    exactLat: null as number | null, // Store exact GPS lat
+    exactLng: null as number | null, // Store exact GPS lng
     brand: '',
     model: '',
     year: '',
@@ -57,6 +61,8 @@ const ListCarPage = () => {
       return;
     }
 
+    setIsLocating(true);
+
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
@@ -66,18 +72,31 @@ const ListCarPage = () => {
           
           if (data && data.address) {
             const city = data.address.province || data.address.city || data.address.town || data.address.state;
-            if (city) {
-              setFormData(prev => ({ ...prev, city: city }));
-            } else {
-               setFormData(prev => ({ ...prev, city: 'Mevcut Konum (GPS)' }));
-            }
+            const district = data.address.suburb || data.address.district || data.address.town || data.address.neighbourhood || "";
+            
+            setFormData(prev => ({ 
+                ...prev, 
+                city: city || prev.city,
+                district: district, // Fill district
+                exactLat: latitude, // Capture exact coords
+                exactLng: longitude 
+            }));
           }
         } catch (error) {
           console.error("Adres çözümlenemedi:", error);
-          setFormData(prev => ({ ...prev, city: 'Mevcut Konum (GPS)' }));
+          // Fallback: Use coords even if address name fails
+          setFormData(prev => ({ 
+            ...prev, 
+            city: 'Konum İşaretlendi',
+            exactLat: latitude,
+            exactLng: longitude
+          }));
+        } finally {
+            setIsLocating(false);
         }
       },
       (error) => {
+        setIsLocating(false);
         console.error("GPS Hatası:", error);
         if (error.code === error.PERMISSION_DENIED) {
            alert("Konum izni reddedildi. Şehri manuel seçmelisiniz.");
@@ -101,43 +120,54 @@ const ListCarPage = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Determine coordinates based on city or default to Turkey center
-    const coords = CITY_COORDINATES[formData.city] || { 
-        lat: 39.0 + (Math.random() * 2), 
-        lng: 35.0 + (Math.random() * 2) 
-    };
+    let finalLocation;
 
-    // Add random jitter to coordinates so multiple cars in same city don't overlap perfectly
-    const finalLocation = {
-        city: formData.city,
-        lat: coords.lat + (Math.random() * 0.05 - 0.025),
-        lng: coords.lng + (Math.random() * 0.05 - 0.025)
-    };
+    // PRIORITY: Use exact GPS coordinates if available
+    if (formData.exactLat && formData.exactLng) {
+        finalLocation = {
+            city: formData.city, // Keep city name for filtering
+            district: formData.district, // Store district info
+            lat: formData.exactLat,
+            lng: formData.exactLng
+        };
+    } else {
+        // FALLBACK: Generate random coordinate around city center
+        const coords = CITY_COORDINATES[formData.city] || { 
+            lat: 39.0 + (Math.random() * 2), 
+            lng: 35.0 + (Math.random() * 2) 
+        };
+        finalLocation = {
+            city: formData.city,
+            district: formData.district,
+            lat: coords.lat + (Math.random() * 0.05 - 0.025),
+            lng: coords.lng + (Math.random() * 0.05 - 0.025)
+        };
+    }
 
     // Parse Price Safely
     const rawPrice = parseInt(formData.pricePerDay);
     const safePrice = isNaN(rawPrice) ? 0 : rawPrice;
 
-    // Create new car object conforming to BOTH Profile (simplified) and Search (detailed) requirements
+    // Create new car object
     const newCar = {
-      id: Date.now(), // Unique numeric ID
+      id: Date.now(),
       name: `${formData.brand} ${formData.model}`,
       brand: formData.brand,
       model: formData.model,
       year: parseInt(formData.year),
-      price: safePrice, // Used by Profile
-      pricePerDay: safePrice, // Used by Search
+      price: safePrice, 
+      pricePerDay: safePrice, 
       pricePerHour: Math.round(safePrice / 8),
       earnings: 0,
-      status: 'Active', // Auto-activate for demo
+      status: 'Active', 
       image: formData.imagePreview || 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      location: finalLocation, // Object for Search map
+      location: finalLocation, // Uses EXACT coords if GPS was used
       transmission: formData.transmission,
       fuelType: formData.fuelType,
-      type: 'Sedan', // Default
+      type: 'Sedan',
       rating: 5.0,
       reviews: 0,
-      distance: '0km',
+      distance: '0km', // In a real app, this would be calc'd relative to user
       features: ['Yeni İlan']
     };
 
@@ -153,14 +183,12 @@ const ListCarPage = () => {
     const updatedCars = [...existingCars, newCar];
     localStorage.setItem('myCars', JSON.stringify(updatedCars));
 
-    // Force an event to notify other components if needed
     window.dispatchEvent(new Event('storage'));
 
-    alert("Aracınız başarıyla listelendi! Profilinizde ve arama sonuçlarında görebilirsiniz.");
+    alert("Aracınız başarıyla listelendi! Tam konumunuz haritada işaretlendi.");
     navigate('/profile');
   };
 
-  // Helper class for inputs to ensure they are white as requested
   const inputClassName = "w-full p-4 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 placeholder-gray-500 shadow-sm";
 
   return (
@@ -189,27 +217,58 @@ const ListCarPage = () => {
                 <div className="space-y-6 animate-in slide-in-from-right-10 fade-in">
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                       <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Şehir</label>
-                       <button type="button" onClick={handleCurrentLocation} className="text-primary-600 dark:text-primary-400 text-sm flex items-center hover:underline">
-                          <Navigation size={14} className="mr-1" /> Konumumu Bul (GPS)
+                       <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Araç Konumu</label>
+                       <button 
+                         type="button" 
+                         onClick={handleCurrentLocation} 
+                         disabled={isLocating}
+                         className="text-primary-600 dark:text-primary-400 text-sm flex items-center hover:underline disabled:opacity-50"
+                       >
+                          {isLocating ? (
+                              <span className="flex items-center gap-1">Konum alınıyor...</span>
+                          ) : (
+                              <>
+                                <Navigation size={14} className="mr-1" /> Konumumu Bul (GPS)
+                              </>
+                          )}
                        </button>
                     </div>
-                    <select 
-                      className={inputClassName}
-                      value={formData.city}
-                      onChange={(e) => setFormData({...formData, city: e.target.value})}
-                    >
-                      <option value="">Şehir Seçiniz</option>
-                      {formData.city && !TURKEY_CITIES.includes(formData.city) && !PRIORITY_CITIES.includes(formData.city) && (
-                        <option value={formData.city}>{formData.city}</option>
-                      )}
-                      <optgroup label="Popüler Şehirler">
-                        {PRIORITY_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
-                      </optgroup>
-                      <optgroup label="Tüm Şehirler">
-                        {TURKEY_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
-                      </optgroup>
-                    </select>
+                    
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <div className="relative">
+                            <select 
+                            className={inputClassName}
+                            value={formData.city}
+                            onChange={(e) => setFormData({...formData, city: e.target.value})}
+                            >
+                            <option value="">Şehir Seçiniz</option>
+                            {formData.city && !TURKEY_CITIES.includes(formData.city) && !PRIORITY_CITIES.includes(formData.city) && (
+                                <option value={formData.city}>{formData.city}</option>
+                            )}
+                            <optgroup label="Popüler Şehirler">
+                                {PRIORITY_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                            </optgroup>
+                            <optgroup label="Tüm Şehirler">
+                                {TURKEY_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                            </optgroup>
+                            </select>
+                        </div>
+                        <div className="relative">
+                            <MapPin size={18} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
+                            <input 
+                                type="text"
+                                placeholder="İlçe / Semt (Örn: Kadıköy)"
+                                className={`${inputClassName} pl-10`}
+                                value={formData.district}
+                                onChange={(e) => setFormData({...formData, district: e.target.value})}
+                            />
+                        </div>
+                    </div>
+                    {formData.exactLat && (
+                        <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1 mt-1">
+                            <CheckCircle size={12} /> Tam konum koordinatları alındı ({formData.exactLat.toFixed(4)}, {formData.exactLng?.toFixed(4)})
+                        </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -345,15 +404,15 @@ const ListCarPage = () => {
                    <div className="flex gap-4 mt-8">
                     <button 
                       type="button" 
-                      onClick={() => setStep(1)} // CORRECTED: Go back to Step 1
+                      onClick={() => setStep(1)} 
                       className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-4 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                     >
                       Geri
                     </button>
                     <button 
                       type="button" 
-                      disabled={!formData.fuelType || !formData.transmission} // CORRECTED: Check Step 2 data
-                      onClick={() => setStep(3)} // CORRECTED: Go to Step 3
+                      disabled={!formData.fuelType || !formData.transmission} 
+                      onClick={() => setStep(3)} 
                       className="flex-[2] bg-primary-600 disabled:bg-gray-300 text-white py-4 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-none border border-white/30"
                     >
                       Devam Et
@@ -453,7 +512,7 @@ const ListCarPage = () => {
                   </div>
                   <h3 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">Harika Seçim!</h3>
                   <p className="text-gray-600 dark:text-gray-400 mb-8">
-                    <strong>{formData.year} {formData.brand} {formData.model}</strong> ({formData.transmission}) aracınızı {formData.city} konumunda listelemek üzeresiniz.
+                    <strong>{formData.year} {formData.brand} {formData.model}</strong> ({formData.transmission}) aracınızı {formData.city} {formData.district ? `/ ${formData.district}` : ''} konumunda listelemek üzeresiniz.
                   </p>
                   
                   {formData.imagePreview && (
