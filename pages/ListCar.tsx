@@ -10,6 +10,16 @@ const TURKEY_CITIES = [
   "Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Amasya", "Artvin", "Aydın", "Balıkesir", "Bilecik", "Bingöl", "Bitlis", "Bolu", "Burdur", "Bursa", "Çanakkale", "Çankırı", "Çorum", "Denizli", "Diyarbakır", "Edirne", "Elazığ", "Erzincan", "Erzurum", "Eskişehir", "Gaziantep", "Giresun", "Gümüşhane", "Hakkari", "Hatay", "Isparta", "Mersin", "Kars", "Kastamonu", "Kayseri", "Kırklareli", "Kırşehir", "Kocaeli", "Konya", "Kütahya", "Malatya", "Manisa", "Kahramanmaraş", "Mardin", "Muğla", "Muş", "Nevşehir", "Niğde", "Ordu", "Rize", "Sakarya", "Samsun", "Siirt", "Sinop", "Sivas", "Tekirdağ", "Tokat", "Trabzon", "Tunceli", "Şanlıurfa", "Uşak", "Van", "Yozgat", "Zonguldak", "Aksaray", "Bayburt", "Karaman", "Kırıkkale", "Batman", "Şırnak", "Bartın", "Ardahan", "Iğdır", "Yalova", "Karabük", "Kilis", "Osmaniye", "Düzce"
 ].sort();
 
+// Mock coordinates for demo purposes
+const CITY_COORDINATES: Record<string, {lat: number, lng: number}> = {
+  "İstanbul": { lat: 41.0082, lng: 28.9784 },
+  "Ankara": { lat: 39.9334, lng: 32.8597 },
+  "İzmir": { lat: 38.4192, lng: 27.1287 },
+  "Antalya": { lat: 36.8969, lng: 30.7133 },
+  "Bursa": { lat: 40.1885, lng: 29.0610 },
+  "Adana": { lat: 37.0000, lng: 35.3213 },
+};
+
 const ListCarPage = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -91,45 +101,65 @@ const ListCarPage = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Create new car object conforming to what Profile page expects
+    // Determine coordinates based on city or default to Turkey center
+    const coords = CITY_COORDINATES[formData.city] || { 
+        lat: 39.0 + (Math.random() * 2), 
+        lng: 35.0 + (Math.random() * 2) 
+    };
+
+    // Add random jitter so multiple cars don't overlap exactly
+    const finalLocation = {
+        city: formData.city,
+        lat: coords.lat + (Math.random() * 0.05 - 0.025),
+        lng: coords.lng + (Math.random() * 0.05 - 0.025)
+    };
+
+    // Parse Price Safely
+    const rawPrice = parseInt(formData.pricePerDay);
+    const safePrice = isNaN(rawPrice) ? 0 : rawPrice;
+
+    // Create new car object conforming to BOTH Profile (simplified) and Search (detailed) requirements
     const newCar = {
       id: Date.now(), // Unique numeric ID
-      name: `${formData.brand} ${formData.model} (${formData.year})`,
+      name: `${formData.brand} ${formData.model}`,
       brand: formData.brand,
       model: formData.model,
       year: parseInt(formData.year),
-      price: parseInt(formData.pricePerDay), // Profile uses 'price'
+      price: safePrice, // Used by Profile
+      pricePerDay: safePrice, // Used by Search and Payment
+      pricePerHour: Math.round(safePrice / 24), // Approx
       earnings: 0,
-      status: 'Pending', // Default status is Pending
+      status: 'Active', // Auto-activate for demo
       image: formData.imagePreview || 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      location: formData.city,
+      location: finalLocation,
       transmission: formData.transmission,
-      fuelType: formData.fuelType
+      fuelType: formData.fuelType,
+      type: 'Sedan', // Default
+      rating: 5.0,
+      reviews: 0,
+      distance: '0km',
+      features: ['Yeni İlan']
     };
 
-    // Get existing cars from localStorage or initialize empty array
-    // Note: Profile page also initializes this, but we need to handle the case where ListCar is visited first or concurrently
+    // Get existing cars
     const existingCarsJson = localStorage.getItem('myCars');
     let existingCars = [];
-    if (existingCarsJson) {
-      existingCars = JSON.parse(existingCarsJson);
-    } else {
-      // If no cars exist in storage, we might want to include the initial mock cars from Profile 
-      // OR just start fresh. Let's start fresh + this new car to be safe, 
-      // or simply append. To keep sync with Profile's MOCK_DATA logic, 
-      // ideally we check if it's initialized. 
-      // For simplicity, we just create the array. Profile page will merge if needed.
-      existingCars = []; 
+    try {
+        existingCars = existingCarsJson ? JSON.parse(existingCarsJson) : [];
+    } catch(err) {
+        existingCars = [];
     }
 
     const updatedCars = [...existingCars, newCar];
     localStorage.setItem('myCars', JSON.stringify(updatedCars));
 
-    alert("Aracınız başarıyla listelendi! Profilinizde görebilirsiniz.");
+    // Force an event to notify other components
+    window.dispatchEvent(new Event('storage'));
+
+    alert("Aracınız başarıyla listelendi! Profilinizde ve arama sonuçlarında görebilirsiniz.");
     navigate('/profile');
   };
 
-  // Helper class for inputs to ensure they are white as requested
   const inputClassName = "w-full p-4 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 placeholder-gray-500 shadow-sm";
 
   return (
@@ -138,7 +168,6 @@ const ListCarPage = () => {
       
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-3xl mx-auto bg-white dark:bg-gray-800 rounded-3xl shadow-xl dark:shadow-none dark:border dark:border-gray-700 overflow-hidden border border-gray-100">
-          {/* Progress Bar */}
           <div className="bg-gray-100 dark:bg-gray-700 h-2 w-full">
             <div 
               className="bg-primary-600 h-full transition-all duration-500"
@@ -309,89 +338,6 @@ const ListCarPage = () => {
                         </label>
                       ))}
                     </div>
-                  </div>
-
-                   <div className="flex gap-4 mt-8">
-                    <button 
-                      type="button" 
-                      onClick={() => setStep(1)}
-                      className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-4 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      Geri
-                    </button>
-                    <button 
-                      type="button" 
-                      disabled={!formData.fuelType || !formData.transmission}
-                      onClick={() => setStep(3)}
-                      className="flex-[2] bg-primary-600 disabled:bg-gray-300 text-white py-4 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-none border border-white/30"
-                    >
-                      Devam Et
-                    </button>
-                  </div>
-                </div>
-              )}
-
-               {/* Step 3: Photo & Price */}
-               {step === 3 && (
-                <div className="space-y-8 animate-in slide-in-from-right-10 fade-in">
-                  
-                  {/* Image Upload */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 flex items-center">
-                      <Camera size={18} className="mr-2 text-primary-600"/> Araç Fotoğrafı
-                    </label>
-                    
-                    <div 
-                      onClick={() => fileInputRef.current?.click()}
-                      className={`
-                        border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all bg-white
-                        ${formData.imagePreview ? 'border-primary-500' : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50'}
-                      `}
-                    >
-                      <input 
-                        type="file" 
-                        ref={fileInputRef}
-                        className="hidden" 
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                      />
-                      
-                      {formData.imagePreview ? (
-                        <div className="relative">
-                          <img src={formData.imagePreview} alt="Preview" className="w-full h-64 object-cover rounded-lg" />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity rounded-lg">
-                            <span className="text-white font-medium flex items-center"><Upload size={16} className="mr-2"/> Değiştir</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center py-6">
-                           <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mb-4 text-primary-600">
-                             <Upload size={32} />
-                           </div>
-                           <p className="text-gray-900 font-medium">Fotoğraf Yüklemek için Tıkla</p>
-                           <p className="text-gray-500 text-sm mt-1">veya sürükleyip bırak</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Price Input */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 flex items-center">
-                      <DollarSign size={18} className="mr-2 text-primary-600"/> Günlük Kiralama Ücreti
-                    </label>
-                    <div className="relative">
-                       <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 font-bold text-lg">₺</span>
-                       <input 
-                        type="number" 
-                        placeholder="Örn: 1500"
-                        className={`${inputClassName} pl-10 text-lg font-bold`}
-                        value={formData.pricePerDay}
-                        onChange={(e) => setFormData({...formData, pricePerDay: e.target.value})}
-                      />
-                      <span className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">/ gün</span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2 ml-1">Önerilen fiyat: ₺1200 - ₺2000 arası</p>
                   </div>
 
                    <div className="flex gap-4 mt-8">

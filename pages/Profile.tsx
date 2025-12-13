@@ -21,8 +21,8 @@ const ProfilePage = () => {
 
   // Initial Mock Data
   const INITIAL_CARS = [
-    { id: 101, name: 'Renault Clio (2021)', price: 900, earnings: 4500, status: 'Active', image: 'https://images.unsplash.com/photo-1621007947382-bb3c3968e3bb?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' },
-    { id: 102, name: 'Fiat Egea (2022)', price: 1100, earnings: 2200, status: 'Pending', image: 'https://images.unsplash.com/photo-1503376763036-066120622c74?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' }
+    { id: 101, name: 'Renault Clio (2021)', price: 900, pricePerDay: 900, earnings: 4500, status: 'Active', image: 'https://images.unsplash.com/photo-1621007947382-bb3c3968e3bb?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' },
+    { id: 102, name: 'Fiat Egea (2022)', price: 1100, pricePerDay: 1100, earnings: 2200, status: 'Pending', image: 'https://images.unsplash.com/photo-1503376763036-066120622c74?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' }
   ];
 
   // State for listed cars with Robust Persistence
@@ -38,7 +38,11 @@ const ProfilePage = () => {
 
   // Sync to localStorage whenever state changes
   useEffect(() => {
-     localStorage.setItem('myCars', JSON.stringify(myCars));
+     if (myCars) {
+        localStorage.setItem('myCars', JSON.stringify(myCars));
+        // Dispatch event for other tabs or components like SearchPage
+        window.dispatchEvent(new Event('storage'));
+     }
   }, [myCars]);
 
   // State for Wallet Balance
@@ -70,8 +74,11 @@ const ProfilePage = () => {
 
   // --- CAR ACTIONS ---
   const openEditCarModal = (car: any) => {
+    // Ensure we have a valid price to edit
+    const currentPrice = car.pricePerDay || car.price || 0;
     setEditingCar({ 
         ...car, 
+        price: currentPrice, // Sync for edit field
         imagePreview: car.image 
     }); 
     setIsEditCarOpen(true);
@@ -88,12 +95,21 @@ const ProfilePage = () => {
   const handleSaveCar = () => {
     if (!editingCar) return;
     
-    const updatedCars = myCars.map(c => String(c.id) === String(editingCar.id) ? {
+    // Validate price
+    const safePrice = Number(editingCar.price) || 0;
+
+    // Create updated object with synced fields
+    const updatedCarData = {
           ...editingCar,
+          price: safePrice,
+          pricePerDay: safePrice, // IMPORTANT: Update both fields to avoid NaN
+          pricePerHour: Math.round(safePrice / 24),
           image: editingCar.imagePreview || editingCar.image, 
           imagePreview: undefined,
           imageFile: undefined
-      } : c);
+    };
+
+    const updatedCars = myCars.map(c => String(c.id) === String(editingCar.id) ? updatedCarData : c);
 
     setMyCars(updatedCars);
     setIsEditCarOpen(false);
@@ -112,8 +128,7 @@ const ProfilePage = () => {
       const targetId = String(id);
       const newCars = myCars.filter(c => String(c.id) !== targetId);
       setMyCars(newCars);
-      // Direct save to ensure sync
-      localStorage.setItem('myCars', JSON.stringify(newCars));
+      // localStorage update happens in useEffect
     }
   };
 
@@ -123,7 +138,6 @@ const ProfilePage = () => {
         const targetId = String(id);
         const newCars = myCars.filter(c => String(c.id) !== targetId);
         setMyCars(newCars);
-        localStorage.setItem('myCars', JSON.stringify(newCars));
         setIsEditCarOpen(false);
         setEditingCar(null);
     }

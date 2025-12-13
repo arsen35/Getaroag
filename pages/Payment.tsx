@@ -34,7 +34,10 @@ const PaymentPage = () => {
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
   const days = diffDays > 0 ? diffDays : 1;
   
-  const total = days * car.pricePerDay;
+  // Robust Price Check: Handle inconsistencies between 'price' and 'pricePerDay' from different data sources
+  const pricePerDay = Number(car.pricePerDay) || Number((car as any).price) || 0;
+
+  const total = days * pricePerDay;
   const insurance = days * 150; // 150 TL per day insurance
   const grandTotal = total + insurance;
 
@@ -110,7 +113,7 @@ const PaymentPage = () => {
                 <h3 className="font-bold text-lg mb-4 text-gray-900 dark:text-white">Ödeme Detayı</h3>
                 <div className="space-y-3">
                    <div className="flex justify-between text-gray-600 dark:text-gray-300">
-                      <span>{days} gün x ₺{car.pricePerDay}</span>
+                      <span>{days} gün x ₺{pricePerDay}</span>
                       <span>₺{total}</span>
                    </div>
                    <div className="flex justify-between text-gray-600 dark:text-gray-300">
