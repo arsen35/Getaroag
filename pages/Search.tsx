@@ -67,7 +67,6 @@ const SearchPage = () => {
     
     const matchesSearch = !searchQuery || cityName.includes(q) || brandName.includes(q) || modelName.includes(q);
     
-    // Ek Filtreleme Mantığı
     const matchesTransmission = !initialTransmission || car.transmission === initialTransmission;
     const matchesFuelType = !initialFuelType || car.fuelType === initialFuelType;
     
@@ -104,13 +103,44 @@ const SearchPage = () => {
 
           const icon = L.divIcon({
             className: 'custom-map-marker',
-            html: `<div class="bg-primary-600 text-white px-3 py-1.5 rounded-full text-xs font-black shadow-xl border-2 border-white">₺${car.pricePerDay}</div>`,
+            html: `<div class="bg-primary-600 text-white px-3 py-1.5 rounded-full text-xs font-black shadow-xl border-2 border-white transition-transform hover:scale-110">₺${car.pricePerDay}</div>`,
             iconSize: [60, 32],
             iconAnchor: [30, 16]
           });
 
           const marker = L.marker([car.location.lat, car.location.lng], { icon }).addTo(markerLayerRef.current);
-          marker.bindPopup(`<div class="p-2 font-bold">${car.brand} ${car.model}</div>`, { closeButton: false });
+          
+          // Create rich popup element
+          const popupContent = document.createElement('div');
+          popupContent.className = 'car-popup-card cursor-pointer group w-[220px] overflow-hidden rounded-xl';
+          popupContent.innerHTML = `
+            <div class="relative h-28 overflow-hidden">
+                <img src="${car.image}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                <div class="absolute top-2 left-2 bg-primary-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest">Connect</div>
+            </div>
+            <div class="p-3 bg-white dark:bg-gray-800">
+                <div class="flex justify-between items-start mb-1">
+                    <h4 class="font-black text-sm text-gray-900 dark:text-white uppercase leading-tight">${car.brand} ${car.model}</h4>
+                </div>
+                <div class="flex items-center gap-3 text-[10px] font-bold text-gray-500">
+                    <div class="flex items-center gap-0.5 text-primary-600"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>${car.rating || 5.0}</div>
+                    <div>${car.transmission}</div>
+                    <div class="ml-auto text-gray-900 dark:text-white">₺${car.pricePerDay}/gün</div>
+                </div>
+            </div>
+          `;
+
+          // Handle popup click navigation
+          popupContent.addEventListener('click', () => {
+            navigate('/payment', { state: { car } });
+          });
+
+          marker.bindPopup(popupContent, { 
+            closeButton: false, 
+            offset: [0, -10],
+            className: 'getaround-custom-popup'
+          });
+
           bounds.extend([car.location.lat, car.location.lng]);
           hasMarkers = true;
         });
@@ -122,7 +152,7 @@ const SearchPage = () => {
     }, 200);
 
     return () => clearTimeout(timer);
-  }, [filteredCars, viewMode]);
+  }, [filteredCars, viewMode, navigate]);
 
   return (
     <div className="h-screen flex flex-col bg-white dark:bg-gray-950 transition-colors">
@@ -130,7 +160,7 @@ const SearchPage = () => {
 
       <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3 z-20">
         <div className="container mx-auto flex flex-col md:flex-row gap-2">
-          <div className="flex-1 relative flex items-center border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
+          <div className="flex-1 relative flex items-center border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-primary-500/20 transition-all">
             <div className="pl-3 text-primary-600"><SearchIcon size={18} /></div>
             <input 
               type="text" 
@@ -158,7 +188,7 @@ const SearchPage = () => {
 
       <div className="flex-1 flex overflow-hidden relative">
         <div className={`w-full md:w-[450px] lg:w-[500px] h-full overflow-y-auto bg-white dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800 flex-shrink-0 transition-transform ${viewMode === 'map' ? 'hidden md:block' : 'block'}`}>
-          <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
+          <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center sticky top-0 bg-white/95 dark:bg-gray-950/95 backdrop-blur-sm z-10">
             <p className="text-sm font-black text-gray-500 uppercase tracking-widest">{filteredCars.length} ARAÇ BULUNDU</p>
             {(initialTransmission || initialFuelType || initialAgeGroup) && <p className="text-[10px] font-black text-primary-600 animate-pulse">KRİTERLER UYGULANDI</p>}
           </div>
@@ -176,7 +206,7 @@ const SearchPage = () => {
                       <button onClick={(e) => toggleFavorite(e, car.id)} className="text-gray-300 hover:text-red-500"><Heart size={18} className={favorites.includes(Number(car.id)) ? "fill-red-500 text-red-500" : ""} /></button>
                     </div>
                     <div className="mt-1 flex items-center gap-1.5">
-                       <span className="text-[9px] font-black tracking-widest text-primary-600 border border-primary-200 px-1.5 py-0.5 rounded bg-primary-50">CONNECT</span>
+                       <span className="text-[9px] font-black tracking-widest text-primary-600 border border-primary-200 px-1.5 py-0.5 rounded bg-primary-50 uppercase">Connect</span>
                     </div>
                     <div className="mt-2 flex items-center gap-3 text-[10px] font-bold text-gray-500">
                       <div className="flex items-center gap-0.5 text-primary-600"><Star size={10} className="fill-current"/> {car.rating || 5.0}</div>
@@ -194,6 +224,15 @@ const SearchPage = () => {
         </div>
         <div className={`flex-1 relative bg-gray-100 dark:bg-gray-900 ${viewMode === 'list' ? 'hidden md:block' : 'block'}`}>
           <div ref={mapContainerRef} className="w-full h-full z-10" />
+          
+          <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 md:hidden">
+            <button 
+              onClick={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
+              className="bg-gray-900 dark:bg-primary-600 text-white px-6 py-3 rounded-full font-black shadow-2xl flex items-center gap-2 text-sm border-2 border-white dark:border-gray-800"
+            >
+              {viewMode === 'list' ? <><MapIcon size={18}/> Harita</> : <><List size={18}/> Liste</>}
+            </button>
+          </div>
         </div>
       </div>
     </div>
