@@ -1,27 +1,39 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { Car, Fuel, Settings, CheckCircle, Navigation, Upload, DollarSign, Camera, MapPin, Search } from 'lucide-react';
+import ImageCarousel from '../components/ImageCarousel';
+import { Fuel, Settings, CheckCircle, Navigation, Upload, DollarSign, Camera, MapPin, X, Plus, Search, Map as MapIcon, Check, AlertCircle, Move } from 'lucide-react';
 import { CAR_BRANDS } from '../data/cars';
 import { checkAuthStatus } from '../services/firebase';
+
+declare const L: any;
 
 const PRIORITY_CITIES = ["İstanbul", "Ankara", "İzmir", "Antalya"];
 const TURKEY_CITIES = [
   "Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Amasya", "Artvin", "Aydın", "Balıkesir", "Bilecik", "Bingöl", "Bitlis", "Bolu", "Burdur", "Bursa", "Çanakkale", "Çankırı", "Çorum", "Denizli", "Diyarbakır", "Edirne", "Elazığ", "Erzincan", "Erzurum", "Eskişehir", "Gaziantep", "Giresun", "Gümüşhane", "Hakkari", "Hatay", "Isparta", "Mersin", "Kars", "Kastamonu", "Kayseri", "Kırklareli", "Kırşehir", "Kocaeli", "Konya", "Kütahya", "Malatya", "Manisa", "Kahramanmaraş", "Mardin", "Muğla", "Muş", "Nevşehir", "Niğde", "Ordu", "Rize", "Sakarya", "Samsun", "Siirt", "Sinop", "Sivas", "Tekirdağ", "Tokat", "Trabzon", "Tunceli", "Şanlıurfa", "Uşak", "Van", "Yozgat", "Zonguldak", "Aksaray", "Bayburt", "Karaman", "Kırıkkale", "Batman", "Şırnak", "Bartın", "Ardahan", "Iğdır", "Yalova", "Karabük", "Kilis", "Osmaniye", "Düzce"
 ].sort();
 
+const fuelTypes = ['Benzin', 'Dizel', 'Elektrik', 'Hibrit', 'LPG'];
+const transmissions = ['Manuel', 'Otomatik', 'Yarı Otomatik'];
+
 const ListCarPage = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const miniMapContainerRef = useRef<HTMLDivElement>(null);
+  const miniMapInstanceRef = useRef<any>(null);
+  const miniMarkerRef = useRef<any>(null);
   
-  // Loading states
   const [isLocating, setIsLocating] = useState(false);
+  const [isGeocoding, setIsGeocoding] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [locationVerified, setLocationVerified] = useState(false);
   
   const [formData, setFormData] = useState({
     city: '',
-    district: '', // Specific district/neighborhood
+    district: '',
+    neighborhood: '',
+    fullAddress: '',
     exactLat: null as number | null,
     exactLng: null as number | null,
     brand: '',
@@ -30,562 +42,363 @@ const ListCarPage = () => {
     fuelType: '',
     transmission: '',
     pricePerDay: '',
-    image: null as File | null,
-    imagePreview: ''
+    images: [] as string[]
   });
 
-  // Auth Check
+  const availableModels = formData.brand ? (CAR_BRANDS as any)[formData.brand] || [] : [];
+
   useEffect(() => {
     if (!checkAuthStatus()) {
-      alert("Araç listelemek için lütfen önce giriş yapınız veya üye olunuz.");
+      alert("Araç listelemek için lütfen giriş yapınız.");
       navigate('/login');
     }
   }, [navigate]);
 
-  const fuelTypes = ['Benzin', 'Dizel', 'Elektrik', 'Hibrit', 'LPG'];
-  const transmissions = ['Manuel', 'Otomatik', 'Yarı Otomatik'];
-  const availableModels = formData.brand ? (CAR_BRANDS as any)[formData.brand] || [] : [];
+  useEffect(() => {
+    if (step === 1 && miniMapContainerRef.current && !miniMapInstanceRef.current && typeof L !== 'undefined') {
+      const map = L.map(miniMapContainerRef.current, { 
+        zoomControl: true, 
+        scrollWheelZoom: true 
+      }).setView([39.0, 35.0], 6);
+      
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+      miniMapInstanceRef.current = map;
+    }
+  }, [step]);
 
-  // --- ROBUST GPS LOGIC (High Accuracy -> Low Accuracy Fallback) ---
-  const handleCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      alert("Tarayıcınız konum özelliğini desteklemiyor.");
+  const updateMiniMap = (lat: number, lng: number) => {
+    if (!miniMapInstanceRef.current) return;
+    
+    if (miniMarkerRef.current) {
+      miniMarkerRef.current.setLatLng([lat, lng]);
+    } else {
+      const markerIcon = L.divIcon({
+        className: 'custom-map-marker',
+        html: `<div class="bg-primary-600 w-8 h-8 rounded-full border-4 border-white shadow-xl flex items-center justify-center text-white"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-1.1 0-2 .9-2 2v7c0 1.1.9 2 2 2h10"></path><circle cx="7" cy="17" r="2"></circle><circle cx="15" cy="17" r="2"></circle></svg></div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+
+      const marker = L.marker([lat, lng], { draggable: true, icon: markerIcon }).addTo(miniMapInstanceRef.current);
+      
+      marker.on('dragend', function(event: any) {
+        const position = event.target.getLatLng();
+        setFormData(prev => ({ ...prev, exactLat: position.lat, exactLng: position.lng }));
+        setLocationVerified(true);
+      });
+      
+      miniMarkerRef.current = marker;
+    }
+    
+    miniMapInstanceRef.current.setView([lat, lng], 16);
+  };
+
+  const verifyLocation = async () => {
+    if (!formData.city || !formData.district) {
+      alert("Lütfen en az Şehir ve İlçe bilgisini giriniz.");
       return;
     }
 
-    setIsLocating(true);
-    setFormData(prev => ({ ...prev, exactLat: null, exactLng: null })); 
-
-    const successCallback = async (position: GeolocationPosition) => {
-      const { latitude, longitude } = position.coords;
+    setIsGeocoding(true);
+    const queries = [
+      `${formData.neighborhood} mah. ${formData.district}, ${formData.city}, Türkiye`,
+      `${formData.district}, ${formData.city}, Türkiye`,
+      `${formData.city}, Türkiye`
+    ];
+    
+    let found = false;
+    for (const q of queries) {
+      if (found) break;
       try {
-        // Fetch address details from Nominatim
-        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1&accept-language=tr`);
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`, {
+          headers: { 'Accept-Language': 'tr' }
+        });
         const data = await response.json();
-        
-        if (data && data.address) {
-          const addr = data.address;
-          
-          // 1. Determine City (Province)
-          const city = addr.province || addr.city || addr.state || addr.region;
-          
-          // 2. Determine District / Neighborhood (The granular part)
-          // We check multiple fields because OSM data varies by region
-          let parts = [];
-          if (addr.suburb) parts.push(addr.suburb);
-          if (addr.neighbourhood && addr.neighbourhood !== addr.suburb) parts.push(addr.neighbourhood);
-          if (addr.quarter && !parts.includes(addr.quarter)) parts.push(addr.quarter);
-          if (addr.district && !parts.includes(addr.district)) parts.push(addr.district);
-          if (addr.town && !parts.includes(addr.town)) parts.push(addr.town);
-          
-          // Take the most relevant parts (usually first 2 are enough: Mahalle, İlçe)
-          const districtStr = parts.slice(0, 2).join(', ');
-
-          setFormData(prev => ({ 
-              ...prev, 
-              city: city || prev.city,
-              district: districtStr, 
-              exactLat: latitude, 
-              exactLng: longitude 
-          }));
+        if (data && data.length > 0) {
+          const lat = parseFloat(data[0].lat);
+          const lng = parseFloat(data[0].lon);
+          setFormData(prev => ({ ...prev, exactLat: lat, exactLng: lng }));
+          setLocationVerified(true);
+          updateMiniMap(lat, lng);
+          found = true;
         }
-      } catch (error) {
-        console.error("Adres çözümlenemedi:", error);
-        // Fallback: Just save coordinates even if address lookup fails
-        setFormData(prev => ({ 
-          ...prev, 
-          city: prev.city || 'Konum İşaretlendi',
-          exactLat: latitude,
-          exactLng: longitude
-        }));
-      } finally {
-          setIsLocating(false);
-      }
-    };
+      } catch (error) { console.error(error); }
+    }
 
-    const errorCallback = (error: GeolocationPositionError) => {
-      console.warn("High accuracy GPS failed, trying low accuracy...", error.message);
-      
-      // Fallback to Low Accuracy (better for Desktop/WiFi/Office Networks)
-      navigator.geolocation.getCurrentPosition(
-        successCallback,
-        (finalError) => {
-           setIsLocating(false);
-           console.error("GPS Final Error:", finalError);
-           // Friendly error mapping
-           let msg = "Konum alınamadı.";
-           if(finalError.code === finalError.PERMISSION_DENIED) msg = "Konum izni reddedildi. Tarayıcı ayarlarından izin verin.";
-           else if(finalError.code === finalError.TIMEOUT) msg = "Konum alma zaman aşımına uğradı.";
-           
-           alert(msg + " Lütfen bilgileri manuel giriniz.");
-        },
-        { enableHighAccuracy: false, timeout: 20000, maximumAge: 0 }
-      );
-    };
+    if (!found) alert("Adres tam olarak doğrulanamadı. Lütfen haritadan manuel işaretleyin.");
+    setIsGeocoding(false);
+  };
 
-    // First try High Accuracy with a short timeout
-    navigator.geolocation.getCurrentPosition(
-      successCallback,
-      errorCallback,
-      { enableHighAccuracy: true, timeout: 5000 } // 5s timeout for GPS, then fallback to Wifi
-    );
+  const handleCurrentLocation = () => {
+    if (!navigator.geolocation) return alert("GPS desteklenmiyor.");
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const { latitude, longitude } = pos.coords;
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1&accept-language=tr`);
+        const data = await res.json();
+        if (data?.address) {
+          const addr = data.address;
+          setFormData(prev => ({ 
+            ...prev, 
+            city: (addr.province || addr.city || "").replace(" İli", ""), 
+            district: (addr.district || addr.town || "").replace(" İlçesi", ""), 
+            neighborhood: addr.suburb || addr.neighbourhood || "",
+            fullAddress: data.display_name || "",
+            exactLat: latitude, 
+            exactLng: longitude 
+          }));
+          setLocationVerified(true);
+          updateMiniMap(latitude, longitude);
+        }
+      } catch (e) { 
+          setFormData(prev => ({ ...prev, exactLat: latitude, exactLng: longitude }));
+          setLocationVerified(true);
+          updateMiniMap(latitude, longitude);
+      } finally { setIsLocating(false); }
+    }, () => {
+      setIsLocating(false);
+      alert("Konum izni reddedildi.");
+    });
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setFormData({
-        ...formData,
-        image: file,
-        imagePreview: URL.createObjectURL(file)
+    if (e.target.files) {
+      const files: File[] = Array.from(e.target.files);
+      files.forEach((file: File) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = reader.result as string;
+          setFormData(prev => ({ ...prev, images: [...prev.images, base64].slice(0, 5) }));
+        };
+        reader.readAsDataURL(file);
       });
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!locationVerified) return alert("Lütfen konumu doğrulayın.");
+    
+    const price = Number(formData.pricePerDay);
+    if (!price || price <= 0) return alert("Lütfen geçerli bir fiyat giriniz.");
+
     setIsSubmitting(true);
     
-    let finalLat = formData.exactLat;
-    let finalLng = formData.exactLng;
-
-    // --- GEOCODING FALLBACK FOR MANUAL ENTRIES ---
-    // If user typed an address but didn't use GPS, we try to fetch coords for that address
-    if ((!finalLat || !finalLng) && formData.city) {
-        try {
-            const query = `${formData.district ? formData.district + ', ' : ''}${formData.city}`;
-            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
-            const results = await response.json();
-
-            if (results && results.length > 0) {
-                finalLat = parseFloat(results[0].lat);
-                finalLng = parseFloat(results[0].lon);
-            } else {
-                // Last Resort: Random jitter around generic city center
-                 const fallbackCoords: Record<string, {lat: number, lng: number}> = {
-                    "İstanbul": { lat: 41.0082, lng: 28.9784 },
-                    "Ankara": { lat: 39.9334, lng: 32.8597 },
-                    "İzmir": { lat: 38.4192, lng: 27.1287 },
-                    "Antalya": { lat: 36.8969, lng: 30.7133 },
-                    "Bursa": { lat: 40.1885, lng: 29.0610 },
-                    "Adana": { lat: 37.0000, lng: 35.3213 },
-                };
-                const cityCenter = fallbackCoords[formData.city] || { lat: 39.0, lng: 35.0 };
-                finalLat = cityCenter.lat + (Math.random() * 0.02);
-                finalLng = cityCenter.lng + (Math.random() * 0.02);
-            }
-        } catch (err) {
-            console.error("Geocoding failed", err);
-            finalLat = 39.0; finalLng = 35.0; // Default center of Turkey
-        }
-    }
-
-    const finalLocation = {
-        city: formData.city,
-        district: formData.district,
-        lat: finalLat || 39.0,
-        lng: finalLng || 35.0
-    };
-
-    const rawPrice = parseInt(formData.pricePerDay);
-    const safePrice = isNaN(rawPrice) ? 0 : rawPrice;
-
-    const newCar = {
-      id: Date.now(),
-      name: `${formData.brand} ${formData.model}`,
-      brand: formData.brand,
-      model: formData.model,
-      year: parseInt(formData.year),
-      price: safePrice, 
-      pricePerDay: safePrice, 
-      pricePerHour: Math.round(safePrice / 8),
-      earnings: 0,
-      status: 'Active', 
-      image: formData.imagePreview || 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      location: finalLocation,
-      transmission: formData.transmission,
-      fuelType: formData.fuelType,
-      type: 'Sedan',
-      rating: 5.0,
-      reviews: 0,
-      distance: '0km',
-      features: ['Yeni İlan']
-    };
-
-    const existingCarsJson = localStorage.getItem('myCars');
-    let existingCars = [];
     try {
-        existingCars = existingCarsJson ? JSON.parse(existingCarsJson) : [];
-    } catch(err) {
-        existingCars = [];
+      const newCar = {
+        id: Number(Date.now()),
+        name: `${formData.brand} ${formData.model}`,
+        brand: formData.brand,
+        model: formData.model,
+        year: Number(formData.year),
+        pricePerDay: price,
+        pricePerHour: Math.round(price / 10),
+        status: 'Active', 
+        image: formData.images[0] || '',
+        images: formData.images,
+        location: { 
+          city: formData.city, 
+          district: formData.district, 
+          neighborhood: formData.neighborhood,
+          fullAddress: formData.fullAddress,
+          lat: formData.exactLat || 39.0, 
+          lng: formData.exactLng || 35.0
+        },
+        transmission: formData.transmission,
+        fuelType: formData.fuelType,
+        type: 'Sedan',
+        rating: 5.0, 
+        reviews: 0, 
+        distance: '0km',
+        features: ['Yeni İlan']
+      };
+
+      const stored = localStorage.getItem('myCars');
+      let existing = [];
+      try {
+        const parsed = stored ? JSON.parse(stored) : [];
+        existing = Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        existing = [];
+      }
+
+      const updatedList = [...existing, newCar];
+      localStorage.setItem('myCars', JSON.stringify(updatedList));
+      window.dispatchEvent(new Event('storage'));
+      
+      // Feedback and navigation
+      alert("Aracınız başarıyla listelendi!");
+      navigate('/profile');
+    } catch (err) {
+      console.error("Listeleme hatası:", err);
+      alert("Bir hata oluştu. Lütfen tekrar deneyin.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const updatedCars = [...existingCars, newCar];
-    localStorage.setItem('myCars', JSON.stringify(updatedCars));
-    window.dispatchEvent(new Event('storage'));
-
-    setIsSubmitting(false);
-    alert("Aracınız başarıyla listelendi! Konumunuz haritada işaretlendi.");
-    navigate('/profile');
   };
 
-  const inputClassName = "w-full p-4 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 placeholder-gray-500 shadow-sm";
+  const inputClassName = "w-full p-4 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white font-medium shadow-sm transition-all";
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans transition-colors duration-300 pb-24 md:pb-0">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans pb-24 md:pb-0">
       <Navbar />
-      
       <div className="container mx-auto px-4 py-12">
-        <div className="max-w-3xl mx-auto bg-white dark:bg-gray-800 rounded-3xl shadow-xl dark:shadow-none dark:border dark:border-gray-700 overflow-hidden border border-gray-100">
-          {/* Progress Bar */}
+        <div className="max-w-3xl mx-auto bg-white dark:bg-gray-800 rounded-[2.5rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-700">
           <div className="bg-gray-100 dark:bg-gray-700 h-2 w-full">
-            <div 
-              className="bg-primary-600 h-full transition-all duration-500"
-              style={{ width: `${(step / 4) * 100}%` }}
-            ></div>
+            <div className="bg-primary-600 h-full transition-all duration-500" style={{ width: `${(step / 4) * 100}%` }}></div>
           </div>
 
           <div className="p-8 md:p-12">
-            <div className="mb-8">
-               <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Getaroag'da Aracını Listele</h1>
-               <p className="text-gray-500 dark:text-gray-400">Aracını paylaşarak gelir elde et. Adım {step}/4</p>
+            <div className="flex justify-between items-start mb-10">
+                <div>
+                    <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-2">Aracını Listele</h1>
+                    <p className="text-gray-500">Araç detaylarını ve konumunu girin. Adım {step}/4</p>
+                </div>
+                {step === 1 && (
+                    <button type="button" onClick={handleCurrentLocation} disabled={isLocating} className="bg-primary-50 dark:bg-primary-900/30 text-primary-600 p-3 rounded-2xl hover:bg-primary-100 transition-all flex items-center gap-2 font-bold text-sm">
+                        {isLocating ? "..." : <Navigation size={20}/>}
+                    </button>
+                )}
             </div>
 
             <form onSubmit={handleSubmit}>
-              {/* Step 1: Location & Brand */}
               {step === 1 && (
-                <div className="space-y-6 animate-in slide-in-from-right-10 fade-in">
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                       <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Araç Konumu</label>
-                       <button 
-                         type="button" 
-                         onClick={handleCurrentLocation} 
-                         disabled={isLocating}
-                         className="text-primary-600 dark:text-primary-400 text-sm flex items-center hover:underline disabled:opacity-50"
-                       >
-                          {isLocating ? (
-                              <span className="flex items-center gap-1"><div className="animate-spin h-3 w-3 border-2 border-primary-600 border-t-transparent rounded-full mr-1"></div> Konum alınıyor...</span>
-                          ) : (
-                              <>
-                                <Navigation size={14} className="mr-1" /> Konumumu Bul (GPS)
-                              </>
-                          )}
-                       </button>
-                    </div>
-                    
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div className="relative">
-                            <select 
-                            className={inputClassName}
-                            value={formData.city}
-                            onChange={(e) => setFormData({...formData, city: e.target.value})}
-                            >
-                            <option value="">Şehir Seçiniz</option>
-                            <optgroup label="Popüler Şehirler">
-                                {PRIORITY_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
-                            </optgroup>
-                            <optgroup label="Tüm Şehirler">
-                                {TURKEY_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
-                            </optgroup>
-                            </select>
-                        </div>
-                        <div className="relative">
-                            <MapPin size={18} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
-                            <input 
-                                type="text"
-                                placeholder="İlçe / Semt / Mahalle"
-                                className={`${inputClassName} pl-10`}
-                                value={formData.district}
-                                onChange={(e) => setFormData({...formData, district: e.target.value})}
-                            />
-                        </div>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                        {formData.exactLat 
-                         ? <span className="text-green-600 flex items-center gap-1"><CheckCircle size={12}/> GPS ile nokta atışı konum alındı.</span>
-                         : "Konum butonunu kullanabilir veya İlçe/Mahalle bilgisini manuel girebilirsiniz."}
-                    </p>
+                <div className="space-y-6 animate-in slide-in-from-right-10">
+                  <div className="grid grid-cols-2 gap-4">
+                      <select className={inputClassName} value={formData.city} onChange={(e) => { setFormData({...formData, city: e.target.value}); setLocationVerified(false); }}>
+                          <option value="">Şehir Seç</option>
+                          {PRIORITY_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                          {TURKEY_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <input type="text" placeholder="İlçe" className={inputClassName} value={formData.district} onChange={(e) => { setFormData({...formData, district: e.target.value}); setLocationVerified(false); }} />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Marka</label>
-                      <select 
-                        className={inputClassName}
-                        value={formData.brand}
-                        onChange={(e) => setFormData({...formData, brand: e.target.value, model: ''})}
-                      >
-                        <option value="">Marka Seçiniz</option>
-                        {Object.keys(CAR_BRANDS).sort().map(b => <option key={b} value={b}>{b}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Yıl</label>
-                      <select 
-                        className={inputClassName}
-                        value={formData.year}
-                        onChange={(e) => setFormData({...formData, year: e.target.value})}
-                      >
-                        <option value="">Yıl</option>
-                        {Array.from({length: 20}, (_, i) => 2024 - i).map(y => (
-                          <option key={y} value={y}>{y}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  
-                  {formData.brand && (
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Model</label>
-                      {availableModels.length > 0 ? (
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto p-1 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600">
-                          {availableModels.map((m: string) => (
-                             <label key={m} className={`
-                                cursor-pointer px-4 py-3 rounded-lg border text-center text-sm font-medium transition-all m-1
-                                ${formData.model === m 
-                                  ? 'border-primary-600 bg-white text-primary-700 ring-2 ring-primary-500' 
-                                  : 'border-transparent bg-white/50 hover:bg-white text-gray-600'}
-                             `}>
-                               <input 
-                                 type="radio" 
-                                 name="model" 
-                                 value={m} 
-                                 className="hidden" 
-                                 onChange={(e) => setFormData({...formData, model: e.target.value})}
-                               />
-                               {m}
-                             </label>
-                          ))}
-                        </div>
-                      ) : (
-                        <input 
-                          type="text" 
-                          placeholder="Model giriniz"
-                          className={inputClassName}
-                          value={formData.model}
-                          onChange={(e) => setFormData({...formData, model: e.target.value})}
-                        />
+                  <input type="text" placeholder="Mahalle" className={inputClassName} value={formData.neighborhood} onChange={(e) => { setFormData({...formData, neighborhood: e.target.value}); setLocationVerified(false); }} />
+                  <textarea placeholder="Sokak, Bina No, Kapı No" className={`${inputClassName} min-h-[80px]`} value={formData.fullAddress} onChange={(e) => { setFormData({...formData, fullAddress: e.target.value}); setLocationVerified(false); }} />
+
+                  <div className="relative w-full aspect-square rounded-[2rem] overflow-hidden border-2 border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 shadow-inner group">
+                      <div ref={miniMapContainerRef} className="w-full h-full z-10" />
+                      {!locationVerified && (
+                         <div className="absolute inset-0 bg-black/10 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center p-8 text-center pointer-events-none">
+                            <div className="bg-white/95 dark:bg-gray-800/95 px-6 py-4 rounded-3xl shadow-xl flex flex-col items-center gap-2">
+                               <MapIcon size={32} className="text-primary-600 animate-bounce"/>
+                               <p className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-wider">Haritayı Görmek İçin</p>
+                               <p className="text-xs text-gray-500 font-medium">Lütfen bilgileri girip doğrulama yapın</p>
+                            </div>
+                         </div>
                       )}
-                    </div>
-                  )}
+                      {locationVerified && (
+                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 w-[80%] pointer-events-none">
+                           <div className="bg-primary-600/90 backdrop-blur-md text-white px-4 py-2 rounded-2xl shadow-lg flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest">
+                              <Move size={14}/> Pini Sürükleyerek Hassas Ayar Yapabilirsin
+                           </div>
+                        </div>
+                      )}
+                  </div>
 
                   <button 
                     type="button" 
-                    disabled={!formData.brand || !formData.model || !formData.city}
-                    onClick={() => setStep(2)}
-                    className="w-full bg-primary-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-4 rounded-xl font-bold mt-6 hover:bg-primary-700 transition-colors shadow-none border border-white/30"
+                    onClick={verifyLocation}
+                    disabled={isGeocoding || !formData.city || !formData.district}
+                    className={`w-full flex items-center justify-center gap-3 p-5 rounded-2xl border-2 font-black transition-all ${locationVerified ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'border-primary-600 text-primary-600 hover:bg-primary-50'}`}
                   >
-                    Devam Et
+                    {isGeocoding ? "Doğrulanıyor..." : locationVerified ? <><Check size={20}/> Konum İşaretlendi</> : <><MapIcon size={20}/> Konumu Haritada Doğrula</>}
                   </button>
+
+                  <hr className="dark:border-gray-700 border-gray-100 my-8" />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <select className={inputClassName} value={formData.brand} onChange={(e) => setFormData({...formData, brand: e.target.value, model: ''})}><option value="">Marka</option>{Object.keys(CAR_BRANDS).map(b => <option key={b} value={b}>{b}</option>)}</select>
+                    <select className={inputClassName} value={formData.year} onChange={(e) => setFormData({...formData, year: e.target.value})}><option value="">Yıl</option>{Array.from({length: 15} as any, (_, i) => 2024 - i).map(y => <option key={y} value={y}>{y}</option>)}</select>
+                  </div>
+                  {formData.brand && <select className={inputClassName} value={formData.model} onChange={(e) => setFormData({...formData, model: e.target.value})}><option value="">Model Seç</option>{availableModels.map((m:any) => <option key={m} value={m}>{m}</option>)}</select>}
+                  
+                  <button type="button" disabled={!formData.brand || !formData.city || !locationVerified} onClick={() => setStep(2)} className="w-full bg-primary-600 disabled:opacity-50 text-white py-5 rounded-2xl font-black text-lg mt-8 shadow-xl shadow-primary-600/20 active:scale-95 transition-all">Devam Et</button>
                 </div>
               )}
 
-              {/* Step 2: Specs (Fuel/Gear) */}
               {step === 2 && (
-                <div className="space-y-8 animate-in slide-in-from-right-10 fade-in">
-                  
+                <div className="space-y-8 animate-in slide-in-from-right-10">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 flex items-center">
-                      <Fuel size={18} className="mr-2 text-primary-600"/> Yakıt Tipi
-                    </label>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {fuelTypes.map((fuel) => (
-                        <label key={fuel} className={`
-                          cursor-pointer relative p-4 rounded-xl border-2 text-center transition-all bg-white
-                          ${formData.fuelType === fuel 
-                            ? 'border-primary-600 text-primary-700' 
-                            : 'border-gray-200 hover:border-gray-300 text-gray-600'}
-                        `}>
-                          <input 
-                            type="radio" 
-                            name="fuel" 
-                            value={fuel} 
-                            className="hidden"
-                            onChange={(e) => setFormData({...formData, fuelType: e.target.value})} 
-                          />
-                          <span className="font-medium">{fuel}</span>
-                          {formData.fuelType === fuel && (
-                            <CheckCircle size={16} className="absolute top-2 right-2 text-primary-600" />
-                          )}
-                        </label>
-                      ))}
-                    </div>
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400 block mb-4 ml-1">Yakıt Tipi</label>
+                    <div className="grid grid-cols-2 gap-3">{fuelTypes.map(f => <button key={f} type="button" onClick={() => setFormData({...formData, fuelType: f})} className={`p-4 rounded-2xl border-2 font-bold transition-all ${formData.fuelType === f ? 'border-primary-600 bg-primary-50 text-primary-700' : 'border-gray-100 dark:border-gray-700 text-gray-500'}`}>{f}</button>)}</div>
                   </div>
-
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 flex items-center">
-                      <Settings size={18} className="mr-2 text-primary-600"/> Vites Tipi
-                    </label>
-                    <div className="flex gap-4">
-                      {transmissions.map((type) => (
-                        <label key={type} className={`
-                          flex-1 cursor-pointer relative p-4 rounded-xl border-2 text-center transition-all bg-white
-                          ${formData.transmission === type
-                            ? 'border-primary-600 text-primary-700' 
-                            : 'border-gray-200 hover:border-gray-300 text-gray-600'}
-                        `}>
-                          <input 
-                            type="radio" 
-                            name="transmission" 
-                            value={type} 
-                            className="hidden"
-                            onChange={(e) => setFormData({...formData, transmission: e.target.value})} 
-                          />
-                          <span className="font-medium">{type}</span>
-                        </label>
-                      ))}
-                    </div>
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400 block mb-4 ml-1">Vites Tipi</label>
+                    <div className="flex gap-3">{transmissions.map(t => <button key={t} type="button" onClick={() => setFormData({...formData, transmission: t})} className={`flex-1 p-4 rounded-2xl border-2 font-bold transition-all ${formData.transmission === t ? 'border-primary-600 bg-primary-50 text-primary-700' : 'border-gray-100 dark:border-gray-700 text-gray-500'}`}>{t}</button>)}</div>
                   </div>
-
-                   <div className="flex gap-4 mt-8">
-                    <button 
-                      type="button" 
-                      onClick={() => setStep(1)} 
-                      className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-4 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      Geri
-                    </button>
-                    <button 
-                      type="button" 
-                      disabled={!formData.fuelType || !formData.transmission} 
-                      onClick={() => setStep(3)} 
-                      className="flex-[2] bg-primary-600 disabled:bg-gray-300 text-white py-4 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-none border border-white/30"
-                    >
-                      Devam Et
-                    </button>
+                   <div className="flex gap-4 mt-12">
+                    <button type="button" onClick={() => setStep(1)} className="flex-1 bg-gray-100 dark:bg-gray-700 py-5 rounded-2xl font-bold">Geri</button>
+                    <button type="button" disabled={!formData.fuelType || !formData.transmission} onClick={() => setStep(3)} className="flex-[2] bg-primary-600 text-white py-5 rounded-2xl font-black shadow-xl shadow-primary-600/20 active:scale-95 transition-all">Devam Et</button>
                   </div>
                 </div>
               )}
 
-               {/* Step 3: Photo & Price */}
-               {step === 3 && (
-                <div className="space-y-8 animate-in slide-in-from-right-10 fade-in">
-                  
-                  {/* Image Upload */}
+              {step === 3 && (
+                <div className="space-y-8 animate-in slide-in-from-right-10">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 flex items-center">
-                      <Camera size={18} className="mr-2 text-primary-600"/> Araç Fotoğrafı
-                    </label>
-                    
-                    <div 
-                      onClick={() => fileInputRef.current?.click()}
-                      className={`
-                        border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all bg-white
-                        ${formData.imagePreview ? 'border-primary-500' : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50'}
-                      `}
-                    >
-                      <input 
-                        type="file" 
-                        ref={fileInputRef}
-                        className="hidden" 
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                      />
-                      
-                      {formData.imagePreview ? (
-                        <div className="relative">
-                          <img src={formData.imagePreview} alt="Preview" className="w-full h-64 object-cover rounded-lg" />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity rounded-lg">
-                            <span className="text-white font-medium flex items-center"><Upload size={16} className="mr-2"/> Değiştir</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center py-6">
-                           <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mb-4 text-primary-600">
-                             <Upload size={32} />
-                           </div>
-                           <p className="text-gray-900 font-medium">Fotoğraf Yüklemek için Tıkla</p>
-                           <p className="text-gray-500 text-sm mt-1">veya sürükleyip bırak</p>
-                        </div>
-                      )}
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400 block mb-4 ml-1">Araç Fotoğrafları</label>
+                    <div onClick={() => fileInputRef.current?.click()} className={`border-2 border-dashed rounded-[2.5rem] p-12 text-center cursor-pointer transition-all bg-gray-50 dark:bg-gray-900 shadow-inner hover:border-primary-500 ${formData.images.length > 0 ? 'border-primary-300' : 'border-gray-300 dark:border-gray-700'}`}>
+                      <input type="file" ref={fileInputRef} className="hidden" multiple accept="image/*" onChange={handleImageUpload} />
+                      <div className="flex flex-col items-center">
+                        <div className="w-20 h-20 bg-white dark:bg-gray-800 rounded-full shadow-lg flex items-center justify-center text-primary-600 mb-6"><Upload size={32} /></div>
+                        <p className="font-black text-gray-900 dark:text-white uppercase tracking-widest text-sm">Fotoğraf Seç</p>
+                        <p className="text-xs text-gray-500 mt-2">Dikey 4:5 çekim önerilir</p>
+                      </div>
                     </div>
+                    {formData.images.length > 0 && (
+                        <div className="flex gap-2 mt-4 overflow-x-auto py-2">
+                            {formData.images.map((img, i) => (
+                                <div key={i} className="w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 border-primary-100 shadow-sm relative">
+                                    <img src={img} className="w-full h-full object-cover" />
+                                    <button type="button" onClick={(e) => { e.stopPropagation(); setFormData(p => ({...p, images: p.images.filter((_, idx) => idx !== i)})); }} className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full"><X size={10}/></button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                   </div>
 
-                  {/* Price Input */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 flex items-center">
-                      <DollarSign size={18} className="mr-2 text-primary-600"/> Günlük Kiralama Ücreti
-                    </label>
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400 block mb-4 ml-1">Günlük Ücret (₺)</label>
                     <div className="relative">
-                       <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 font-bold text-lg">₺</span>
-                       <input 
-                        type="number" 
-                        placeholder="Örn: 1500"
-                        className={`${inputClassName} pl-10 text-lg font-bold`}
-                        value={formData.pricePerDay}
-                        onChange={(e) => setFormData({...formData, pricePerDay: e.target.value})}
-                      />
-                      <span className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">/ gün</span>
+                       <span className="absolute left-5 top-1/2 -translate-y-1/2 font-black text-gray-400 text-xl">₺</span>
+                       <input type="number" placeholder="1500" className={`${inputClassName} pl-12 py-5 text-2xl font-black`} value={formData.pricePerDay} onChange={(e) => setFormData({...formData, pricePerDay: e.target.value})} />
                     </div>
-                    <p className="text-xs text-gray-500 mt-2 ml-1">Önerilen fiyat: ₺1200 - ₺2000 arası</p>
                   </div>
-
                    <div className="flex gap-4 mt-8">
-                    <button 
-                      type="button" 
-                      onClick={() => setStep(2)}
-                      className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-4 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      Geri
-                    </button>
-                    <button 
-                      type="button" 
-                      disabled={!formData.pricePerDay || !formData.imagePreview}
-                      onClick={() => setStep(4)}
-                      className="flex-[2] bg-primary-600 disabled:bg-gray-300 text-white py-4 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-none border border-white/30"
-                    >
-                      Devam Et
-                    </button>
+                    <button type="button" onClick={() => setStep(2)} className="flex-1 bg-gray-100 dark:bg-gray-700 py-5 rounded-2xl font-bold">Geri</button>
+                    <button type="button" disabled={formData.images.length === 0 || !formData.pricePerDay} onClick={() => setStep(4)} className="flex-[2] bg-primary-600 text-white py-5 rounded-2xl font-black shadow-xl shadow-primary-600/20 active:scale-95 transition-all">İncele</button>
                   </div>
                 </div>
               )}
 
-              {/* Step 4: Confirmation */}
               {step === 4 && (
-                <div className="text-center animate-in slide-in-from-right-10 fade-in">
-                  <div className="bg-green-100 dark:bg-green-900/30 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Car size={40} className="text-green-600 dark:text-green-400" />
+                <div className="text-center animate-in zoom-in-95">
+                  <div className="w-full max-w-xs mx-auto rounded-[3rem] overflow-hidden shadow-2xl mb-8 border-8 border-white dark:border-gray-700">
+                      <ImageCarousel images={formData.images} />
                   </div>
-                  <h3 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">Harika Seçim!</h3>
-                  <p className="text-gray-600 dark:text-gray-400 mb-8">
-                    <strong>{formData.year} {formData.brand} {formData.model}</strong> ({formData.transmission}) aracınızı {formData.city} {formData.district ? `/ ${formData.district}` : ''} konumunda listelemek üzeresiniz.
-                  </p>
+                  <h3 className="text-3xl font-black mb-2 text-gray-900 dark:text-white uppercase tracking-tight">{formData.year} {formData.brand} {formData.model}</h3>
+                  <p className="text-gray-500 font-bold mb-1">{formData.neighborhood} Mah. {formData.district} / {formData.city}</p>
+                  <p className="text-xs text-gray-400 mb-10 italic max-w-sm mx-auto">{formData.fullAddress}</p>
                   
-                  {formData.imagePreview && (
-                    <img src={formData.imagePreview} alt="Car" className="w-full h-48 object-cover rounded-xl mb-6 shadow-md" />
-                  )}
-
-                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl mb-8 text-left border border-blue-100 dark:border-blue-900">
-                    <div className="flex justify-between items-center mb-1">
-                      <p className="text-sm text-blue-800 dark:text-blue-300 font-medium">💰 Tahmini Haftalık Kazanç</p>
-                      <span className="text-xs bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded">%15 komisyon düşülür</span>
-                    </div>
-                    {/* Calculate estimated earnings based on input price */}
-                    <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                      ₺{(parseInt(formData.pricePerDay || '0') * 3 * 0.85).toFixed(0)} - ₺{(parseInt(formData.pricePerDay || '0') * 5 * 0.85).toFixed(0)}
-                    </p>
+                  <div className="bg-primary-50 dark:bg-primary-900/20 p-8 rounded-[2rem] mb-12 flex flex-col items-center">
+                      <span className="text-[10px] font-black text-primary-600 uppercase tracking-widest mb-2">Net Günlük Kazancın</span>
+                      <span className="text-5xl font-black text-primary-700 dark:text-primary-300">₺{(parseInt(formData.pricePerDay) * 0.85).toFixed(0)}</span>
                   </div>
 
                   <div className="flex gap-4">
-                     <button 
-                      type="button" 
-                      onClick={() => setStep(3)}
-                      className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-4 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      Geri
-                    </button>
+                    <button type="button" onClick={() => setStep(3)} className="flex-1 bg-gray-100 dark:bg-gray-700 py-5 rounded-2xl font-bold">Düzenle</button>
                     <button 
-                      type="submit"
+                      type="submit" 
                       disabled={isSubmitting} 
-                      className="flex-[2] bg-primary-600 disabled:bg-primary-400 text-white py-4 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-none border border-white/30 flex items-center justify-center gap-2"
+                      className="flex-[2] bg-primary-600 text-white py-5 rounded-2xl font-black shadow-xl shadow-primary-600/20 active:scale-95 transition-all disabled:opacity-50"
                     >
-                      {isSubmitting ? 'İşleniyor...' : 'İlanı Yayınla'}
+                      {isSubmitting ? 'Listeleniyor...' : 'İlanı Başlat'}
                     </button>
                   </div>
                 </div>
               )}
-
             </form>
           </div>
         </div>

@@ -58,28 +58,41 @@
 }
 </script>
 <style>
-  /* Custom Leaflet Popup Styles */
+  /* Custom Leaflet Popup Styles for Getaround Look */
   .leaflet-popup-content-wrapper {
-    border-radius: 16px;
-    padding: 0;
+    border-radius: 12px !important;
+    padding: 0 !important;
     overflow: hidden;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
   }
   .leaflet-popup-content {
-    margin: 0;
-    width: 280px !important;
+    margin: 0 !important;
+    width: 200px !important;
   }
-  .leaflet-popup-tip {
-    background: white;
+  .leaflet-popup-tip-container {
+    width: 20px;
+    height: 10px;
   }
   .dark .leaflet-popup-content-wrapper {
-    background: #1f2937;
-    color: white;
-    border: 1px solid #374151;
+    background: #1f2937 !important;
+    color: white !important;
   }
-  .dark .leaflet-popup-tip {
-    background: #1f2937;
-    border-top: 1px solid #374151;
-    border-left: 1px solid #374151;
+  
+  /* Getaround Popup Styling */
+  .car-popup-card {
+    transition: all 0.2s;
+  }
+  .car-popup-card:hover {
+    background-color: #f9fafb;
+  }
+  .dark .car-popup-card:hover {
+    background-color: #374151;
+  }
+
+  .custom-map-marker {
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
 </style>
 </head>

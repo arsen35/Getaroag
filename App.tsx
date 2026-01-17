@@ -1,8 +1,10 @@
-import React, { ReactNode } from 'react';
+
+
+import React, { ReactNode, Component } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from './pages/Home';
 import SearchPage from './pages/Search';
-import ListCarPage from './pages/ListCar';
+import ListCarPage from './pages/ListCarPage';
 import LoginPage from './pages/Login';
 import SignupPage from './pages/Signup';
 import ProfilePage from './pages/Profile';
@@ -18,14 +20,15 @@ interface ErrorBoundaryState {
   hasError: boolean;
 }
 
-// Simple Error Boundary Component to prevent white screen crashes
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// Fixed: Inheriting from 'Component' directly to ensure 'this.state' and 'this.props' are correctly recognized by TypeScript
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
+    // Initialize state
     this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error: any): ErrorBoundaryState {
+  static getDerivedStateFromError(_: any): ErrorBoundaryState {
     return { hasError: true };
   }
 
@@ -34,20 +37,22 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   render() {
+    // Fixed: 'this.state' is now properly typed
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center bg-gray-50">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Bir şeyler ters gitti.</h1>
-          <p className="text-gray-600 mb-4">Uygulama yüklenirken bir hata oluştu.</p>
+        <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center bg-gray-50 dark:bg-gray-900">
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-2">Bir şeyler ters gitti.</h1>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">Uygulama yüklenirken bir hata oluştu.</p>
           <button 
             onClick={() => window.location.reload()}
-            className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold"
+            className="bg-primary-600 text-white px-6 py-2 rounded-xl font-bold"
           >
             Sayfayı Yenile
           </button>
         </div>
       );
     }
+    // Fixed: 'this.props' is now properly typed
     return this.props.children;
   }
 }
@@ -66,7 +71,6 @@ const App = () => {
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/payment" element={<PaymentPage />} />
               <Route path="/favorites" element={<FavoritesPage />} />
-              {/* Default catch-all redirect to Home */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </HashRouter>

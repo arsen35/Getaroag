@@ -17,7 +17,11 @@ export const MOCK_CARS: Car[] = [
     distance: '300m',
     features: ['Bluetooth', 'GPS'],
     image: 'https://images.unsplash.com/photo-1621007947382-bb3c3968e3bb?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-    location: { city: 'İstanbul', lat: 41.0082, lng: 28.9784 }
+    images: [
+      'https://images.unsplash.com/photo-1621007947382-bb3c3968e3bb?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1621007947382-bb3c3968e3bb?auto=format&fit=crop&w=800&q=100'
+    ],
+    location: { city: 'İstanbul', district: 'Beşiktaş', neighborhood: 'Ortaköy', lat: 41.0473, lng: 29.0254 }
   },
   {
     id: 2,
@@ -35,7 +39,10 @@ export const MOCK_CARS: Car[] = [
     distance: '1.2km',
     features: ['Sunroof', 'Leather Seats'],
     image: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-    location: { city: 'İstanbul', lat: 41.0150, lng: 28.9850 }
+    images: [
+      'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=800&q=80'
+    ],
+    location: { city: 'İstanbul', district: 'Kadıköy', neighborhood: 'Moda', lat: 40.9856, lng: 29.0234 }
   },
   {
     id: 3,
@@ -53,13 +60,16 @@ export const MOCK_CARS: Car[] = [
     distance: '500m',
     features: ['Apple CarPlay'],
     image: 'https://images.unsplash.com/photo-1503376763036-066120622c74?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-    location: { city: 'İstanbul', lat: 41.0200, lng: 28.9600 }
+    images: [
+      'https://images.unsplash.com/photo-1503376763036-066120622c74?auto=format&fit=crop&w=800&q=80'
+    ],
+    location: { city: 'İzmir', district: 'Konak', neighborhood: 'Alsancak', lat: 38.4371, lng: 27.1423 }
   },
   {
     id: 4,
-    name: 'BMW 3 Serisi',
-    brand: 'BMW',
-    model: '320i',
+    name: 'Audi A4',
+    brand: 'Audi',
+    model: 'A4',
     year: 2023,
     type: 'Premium',
     fuelType: 'Petrol',
@@ -71,6 +81,9 @@ export const MOCK_CARS: Car[] = [
     distance: '2km',
     features: ['Autopilot', 'Heated Seats'],
     image: 'https://images.unsplash.com/photo-1555215695-3004980adade?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-    location: { city: 'İstanbul', lat: 41.0300, lng: 28.9900 }
+    images: [
+      'https://images.unsplash.com/photo-1555215695-3004980adade?auto=format&fit=crop&w=800&q=80'
+    ],
+    location: { city: 'Ankara', district: 'Çankaya', neighborhood: 'Kavaklıdere', lat: 39.9056, lng: 32.8612 }
   }
 ];

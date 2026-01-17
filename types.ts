@@ -4,9 +4,9 @@ export interface Car {
   brand: string;
   model: string;
   year: number;
-  type: 'Economy' | 'SUV' | 'Compact' | 'Premium';
-  fuelType: 'Petrol' | 'Diesel' | 'Electric' | 'Hybrid';
-  transmission: 'Manual' | 'Automatic';
+  type: string;
+  fuelType: string;
+  transmission: string;
   pricePerHour: number;
   pricePerDay: number;
   rating: number;
@@ -14,8 +14,12 @@ export interface Car {
   distance: string;
   features: string[];
   image: string;
+  images: string[];
   location: {
     city: string;
+    district: string;
+    neighborhood?: string;
+    fullAddress?: string;
     lat: number;
     lng: number;
   };
