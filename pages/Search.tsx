@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { ChevronDown, SlidersHorizontal, Map as MapIcon, List, Heart, X, Search as SearchIcon, Calendar, Star, Filter } from 'lucide-react';
+import { ChevronDown, Map as MapIcon, List, Heart, X, Search as SearchIcon, Calendar, Star, Filter } from 'lucide-react';
 import { Car } from '../types';
 import { MOCK_CARS } from '../data/mockData';
 
-declare const L: any;
+declare const google: any;
 
 // Helper for Turkish Case-Insensitive comparison
 const trNormalize = (str: string) => {
-  return (str || "").toLocaleLowerCase('tr-TR').trim();
+  return (str || "").toLocaleLowerCase('tr-TR').trim()
+    .replace(/i/g, 'i')
+    .replace(/ı/g, 'ı');
 };
 
 const SearchPage = () => {
@@ -20,15 +22,14 @@ const SearchPage = () => {
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const markerLayerRef = useRef<any>(null);
+  const mapRef = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
 
   // Filter States
   const [allCars, setAllCars] = useState<Car[]>([]);
   const [searchQuery, setSearchQuery] = useState(state?.location || "");
   const [transmission, setTransmission] = useState(state?.transmission || "");
   const [fuelType, setFuelType] = useState(state?.fuelType || "");
-  const [ageGroup, setAgeGroup] = useState(state?.ageGroup || "");
 
   useEffect(() => {
     const savedFavs = localStorage.getItem('favorites');
@@ -59,7 +60,7 @@ const SearchPage = () => {
     localStorage.setItem('favorites', JSON.stringify(newFavs));
   };
 
-  // CORE FIX: Türkçe Karakter Duyarlı Filtreleme
+  // Türkçe Karakter Duyarlı Akıllı Filtreleme
   const filteredCars = useMemo(() => {
     const q = trNormalize(searchQuery);
     
@@ -78,110 +79,110 @@ const SearchPage = () => {
       const matchesTransmission = !transmission || car.transmission === transmission;
       const matchesFuelType = !fuelType || car.fuelType === fuelType;
       
-      let matchesAge = true;
-      if (ageGroup === 'new') matchesAge = car.year >= 2021;
-      else if (ageGroup === 'mid') matchesAge = car.year >= 2017 && car.year <= 2020;
-      else if (ageGroup === 'old') matchesAge = car.year < 2017;
-
-      return matchesSearch && matchesTransmission && matchesFuelType && matchesAge;
+      return matchesSearch && matchesTransmission && matchesFuelType;
     });
-  }, [allCars, searchQuery, transmission, fuelType, ageGroup]);
+  }, [allCars, searchQuery, transmission, fuelType]);
 
-  // Harita Senkronizasyonu ve Tasarımı
+  // Google Maps Initialization & Marker Logic
   useEffect(() => {
-    if (!mapInstanceRef.current && mapContainerRef.current && typeof L !== 'undefined') {
+    const initMap = async () => {
+      if (!mapContainerRef.current) return;
+
       try {
-        // Getaround tarzı daha temiz ve net bir harita için CartoDB Positron
-        const map = L.map(mapContainerRef.current, { zoomControl: false }).setView([41.0082, 28.9784], 12);
-        
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-          attribution: '&copy; CartoDB'
-        }).addTo(map);
+        // Load libraries
+        const { Map } = await google.maps.importLibrary("maps");
+        const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
 
-        L.control.zoom({ position: 'topright' }).addTo(map);
-        markerLayerRef.current = L.layerGroup().addTo(map);
-        mapInstanceRef.current = map;
-      } catch (e) { console.error("Map Error:", e); }
-    }
+        if (!mapRef.current) {
+          mapRef.current = new Map(mapContainerRef.current, {
+            center: { lat: 41.0082, lng: 28.9784 },
+            zoom: 12,
+            mapId: 'GETAROAG_SEARCH_MAP', // Map ID for Advanced Markers
+            disableDefaultUI: true,
+            zoomControl: true,
+            gestureHandling: 'greedy',
+            styles: [
+              { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }
+            ]
+          });
+        }
 
-    const timer = setTimeout(() => {
-      if (mapInstanceRef.current && markerLayerRef.current) {
-        mapInstanceRef.current.invalidateSize();
-        markerLayerRef.current.clearLayers();
-        const bounds = L.latLngBounds([]);
-        let hasMarkers = false;
-        
+        // Clear existing markers
+        markersRef.current.forEach(m => m.setMap(null));
+        markersRef.current = [];
+
+        const bounds = new google.maps.LatLngBounds();
+        let hasCars = false;
+
         filteredCars.forEach(car => {
           if (!car?.location?.lat || !car?.location?.lng) return;
 
-          // Daha Belirgin ve Net Marker (Fiyat Etiketi)
-          const icon = L.divIcon({
-            className: 'custom-map-marker',
-            html: `<div class="bg-[#A322DA] text-white px-3 py-1.5 rounded-full text-sm font-black shadow-[0_4px_15px_rgba(163,34,218,0.4)] border-2 border-white hover:scale-110 active:scale-95 transition-all transform-gpu">₺${car.pricePerDay}</div>`,
-            iconSize: [65, 36],
-            iconAnchor: [32, 18]
+          const priceTag = document.createElement('div');
+          priceTag.className = 'price-marker';
+          priceTag.textContent = `₺${car.pricePerDay}`;
+
+          const marker = new AdvancedMarkerElement({
+            map: mapRef.current,
+            position: { lat: car.location.lat, lng: car.location.lng },
+            content: priceTag,
+            title: `${car.brand} ${car.model}`
           });
 
-          const marker = L.marker([car.location.lat, car.location.lng], { icon }).addTo(markerLayerRef.current);
-          
-          const popupDiv = document.createElement('div');
-          popupDiv.className = 'car-popup-card cursor-pointer group w-[240px] rounded-2xl overflow-hidden bg-white dark:bg-gray-800 shadow-2xl';
-          popupDiv.innerHTML = `
-            <div class="h-32 overflow-hidden relative">
-                <img src="${car.image}" class="w-full h-full object-cover transition-transform group-hover:scale-105" />
-                <div class="absolute top-2 left-2 bg-primary-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow">GETAROAG CONNECT</div>
-            </div>
-            <div class="p-4">
-                <h4 class="font-black text-sm text-gray-900 dark:text-white uppercase leading-tight mb-2">${car.brand} ${car.model}</h4>
-                <div class="flex justify-between items-center">
-                    <div class="flex items-center gap-1 text-[11px] font-bold text-gray-500">
-                        <span class="text-yellow-400">★</span> ${car.rating} • ${car.transmission}
-                    </div>
-                    <span class="font-black text-sm text-gray-900 dark:text-white">₺${car.pricePerDay}<span class="text-[9px] font-bold text-gray-400">/gün</span></span>
+          // Custom InfoWindow
+          const infoWindow = new google.maps.InfoWindow({
+            content: `
+              <div class="p-0 overflow-hidden w-[200px] bg-white dark:bg-gray-800 rounded-2xl">
+                <img src="${car.image}" class="w-full h-24 object-cover" />
+                <div class="p-3">
+                  <h4 class="font-black text-xs uppercase text-gray-900 dark:text-white mb-1">${car.brand} ${car.model}</h4>
+                  <div class="flex justify-between items-center text-[10px] font-bold">
+                    <span class="text-primary-600">★ ${car.rating}</span>
+                    <span class="text-gray-900 dark:text-white">₺${car.pricePerDay}/gün</span>
+                  </div>
                 </div>
-            </div>
-          `;
-          popupDiv.onclick = () => navigate('/payment', { state: { car } });
-
-          marker.bindPopup(popupDiv, { 
-            closeButton: false, 
-            offset: [0, -12], 
-            className: 'getaround-custom-popup',
-            maxWidth: 240
+              </div>
+            `,
+            disableAutoPan: false
           });
-          
-          bounds.extend([car.location.lat, car.location.lng]);
-          hasMarkers = true;
+
+          marker.addListener('click', () => {
+            infoWindow.open(mapRef.current, marker);
+          });
+
+          markersRef.current.push(marker);
+          bounds.extend({ lat: car.location.lat, lng: car.location.lng });
+          hasCars = true;
         });
 
-        if (hasMarkers && bounds.isValid() && filteredCars.length > 0) {
-          mapInstanceRef.current.fitBounds(bounds, { padding: [60, 60], maxZoom: 14 });
+        if (hasCars && filteredCars.length > 0) {
+          mapRef.current.fitBounds(bounds, 80);
         }
+      } catch (err) {
+        console.error("Google Maps Load Error:", err);
       }
-    }, 150);
+    };
 
+    const timer = setTimeout(initMap, 200);
     return () => clearTimeout(timer);
-  }, [filteredCars, navigate]);
+  }, [filteredCars]);
 
   return (
-    <div className="h-screen flex flex-col bg-white dark:bg-gray-950 transition-colors">
+    <div className="h-screen flex flex-col bg-white dark:bg-gray-950">
       <Navbar />
 
-      {/* Modern Search & Filters Area */}
-      <div className="bg-white dark:bg-gray-900 border-b dark:border-gray-800 px-4 py-4 z-40 shadow-sm transition-colors">
+      <div className="bg-white dark:bg-gray-900 border-b dark:border-gray-800 px-4 py-4 z-40 shadow-sm">
         <div className="container mx-auto flex flex-col lg:flex-row gap-3">
-          {/* Enhanced Search Input */}
           <div className="flex-1 flex items-center border-2 border-gray-100 dark:border-gray-700 rounded-2xl px-5 bg-gray-50 dark:bg-gray-800 focus-within:ring-4 focus-within:ring-primary-500/10 focus-within:border-primary-500 transition-all group">
             <SearchIcon size={20} className="text-gray-400 mr-3 group-focus-within:text-primary-500" />
             <input 
               type="text" 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Nereye gideceksiniz? (Örn: İzміr, İstanbul...)" 
-              className="w-full py-3.5 bg-transparent outline-none text-sm font-bold text-gray-900 dark:text-white placeholder:text-gray-400 placeholder:font-medium" 
+              placeholder="Konum veya araç ara... (Örn: İzміr, İstanbul)" 
+              className="w-full py-3.5 bg-transparent outline-none text-sm font-bold text-gray-900 dark:text-white" 
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery("")} className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors">
+              <button onClick={() => setSearchQuery("")} className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full">
                 <X size={16} className="text-gray-400" />
               </button>
             )}
@@ -194,7 +195,7 @@ const SearchPage = () => {
             
             <button 
               onClick={() => setShowMoreFilters(!showMoreFilters)}
-              className={`flex items-center gap-2 border-2 px-6 py-3.5 rounded-2xl text-sm font-black transition-all transform active:scale-95 ${showMoreFilters || transmission || fuelType ? 'border-primary-600 text-primary-600 bg-primary-50' : 'border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}
+              className={`flex items-center gap-2 border-2 px-6 py-3.5 rounded-2xl text-sm font-black transition-all ${showMoreFilters || transmission || fuelType ? 'border-primary-600 text-primary-600 bg-primary-50' : 'border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}
             >
               <Filter size={18} /> 
               <span className="hidden sm:inline">Filtreler</span>
@@ -203,7 +204,6 @@ const SearchPage = () => {
           </div>
         </div>
 
-        {/* Improved Dropdown Filters */}
         {showMoreFilters && (
           <div className="container mx-auto mt-4 p-8 bg-white dark:bg-gray-800 border-2 border-primary-50 dark:border-gray-700 rounded-[2.5rem] shadow-2xl animate-in slide-in-from-top-4 duration-300 flex flex-wrap gap-10">
             <div className="space-y-4">
@@ -223,8 +223,8 @@ const SearchPage = () => {
                 </div>
             </div>
             <div className="flex items-end pb-1">
-                <button onClick={() => { setTransmission(""); setFuelType(""); setAgeGroup(""); }} className="text-xs font-black text-red-500 hover:text-red-600 uppercase tracking-widest flex items-center gap-2 group">
-                   <X size={14} className="group-hover:rotate-90 transition-transform"/> Filtreleri Sıfırla
+                <button onClick={() => { setTransmission(""); setFuelType(""); }} className="text-xs font-black text-red-500 hover:text-red-600 uppercase tracking-widest flex items-center gap-2">
+                   <X size={14}/> Filtreleri Sıfırla
                 </button>
             </div>
           </div>
@@ -232,7 +232,6 @@ const SearchPage = () => {
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Results List View */}
         <div className={`w-full md:w-[480px] lg:w-[540px] h-full overflow-y-auto bg-white dark:bg-gray-950 border-r dark:border-gray-800 shrink-0 transition-all ${viewMode === 'map' ? 'hidden md:block' : 'block'}`}>
           <div className="p-6 flex justify-between items-center sticky top-0 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md z-10 border-b dark:border-gray-800">
             <h2 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.3em]">{filteredCars.length} ARAÇ BULUNDU</h2>
@@ -248,7 +247,7 @@ const SearchPage = () => {
                   <div className="flex justify-between items-start">
                     <h3 className="font-black text-base text-gray-900 dark:text-white uppercase truncate pr-4">{car.brand} {car.model}</h3>
                     <button onClick={(e) => toggleFavorite(e, car.id)} className="text-gray-300 hover:text-red-500 transition-colors shrink-0">
-                      <Heart size={22} className={favorites.includes(Number(car.id)) ? "fill-red-500 text-red-500" : "hover:scale-110 active:scale-90 transition-transform"} />
+                      <Heart size={22} className={favorites.includes(Number(car.id)) ? "fill-red-500 text-red-500" : ""} />
                     </button>
                   </div>
                   <div className="mt-2 flex items-center gap-2">
@@ -268,27 +267,15 @@ const SearchPage = () => {
                 </div>
               </div>
             ))}
-            {filteredCars.length === 0 && (
-              <div className="py-32 px-10 text-center animate-in fade-in duration-500">
-                <div className="w-20 h-20 bg-gray-50 dark:bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-6 text-gray-300">
-                  <SearchIcon size={32} />
-                </div>
-                <h3 className="font-black text-gray-900 dark:text-white text-lg mb-2 uppercase">Sonuç Bulunamadı</h3>
-                <p className="text-gray-500 text-sm font-medium leading-relaxed">Aradığınız kriterlere uygun araç şu an bulunmuyor. Farklı bir konum veya filtre deneyebilirsiniz.</p>
-                <button onClick={() => { setSearchQuery(""); setTransmission(""); setFuelType(""); }} className="mt-8 text-primary-600 font-black text-xs uppercase tracking-widest border-b-2 border-primary-100 hover:border-primary-600 transition-all pb-1">Tüm Araçları Listele</button>
-              </div>
-            )}
           </div>
         </div>
 
-        {/* High Contrast Map View */}
         <div className={`flex-1 relative bg-gray-100 dark:bg-gray-900 ${viewMode === 'list' ? 'hidden md:block' : 'block'}`}>
           <div ref={mapContainerRef} className="w-full h-full z-10" />
-          
           <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-30 md:hidden">
             <button 
               onClick={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
-              className="bg-gray-900 dark:bg-primary-600 text-white px-10 py-4 rounded-full font-black shadow-[0_10px_30px_rgba(0,0,0,0.3)] flex items-center gap-3 text-sm border-2 border-white/20 active:scale-95 transition-all"
+              className="bg-gray-900 dark:bg-primary-600 text-white px-10 py-4 rounded-full font-black shadow-2xl flex items-center gap-3 text-sm border-2 border-white/20 active:scale-95 transition-all"
             >
               {viewMode === 'list' ? <><MapIcon size={20}/> Haritaya Geç</> : <><List size={20}/> Listeyi Gör</>}
             </button>
