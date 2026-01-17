@@ -7,13 +7,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     
-    <!-- Google Maps JS API -->
-    <!-- Note: API Key is injected or handled by environment. Using standard libraries for Advanced Markers. -->
-    <script>
-      (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b[q]||(b[q]={}),el=d[l],f=async(n,o)=>d[l]=async(a,k)=>(a=await n(a,k),o&&o(a),a);h=m.createElement("script");h.src=`https://maps.googleapis.com/maps/api/js?key=${b.GOOGLE_MAPS_API_KEY || ''}&callback=initMap&v=weekly&libraries=marker,places`;h.async=true;h.defer=true;d[l]=el;b.initMap=()=>{};m.head.append(h)})(
-        (n,o)=>google.maps[n]=o
-      );
-    </script>
+    <!-- Leaflet CSS for Real Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
     <script>
       tailwind.config = {
@@ -61,23 +58,36 @@
 }
 </script>
 <style>
-  /* Getaround Custom Popup Styling for Google Maps */
-  .gm-style-iw {
+  /* Getaround Custom Popup Stylings for Leaflet */
+  .leaflet-popup-content-wrapper {
     border-radius: 20px !important;
     padding: 0 !important;
-    overflow: hidden !important;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1) !important;
+    overflow: hidden;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
   }
-  .gm-style-iw-d {
-    overflow: hidden !important;
-    padding: 0 !important;
+  .leaflet-popup-content {
+    margin: 0 !important;
+    width: 240px !important;
   }
-  .gm-ui-hover-text {
-    display: none !important;
+  .leaflet-popup-tip {
+    background: white !important;
+  }
+  .dark .leaflet-popup-content-wrapper {
+    background: #1f2937 !important;
+    color: white !important;
+  }
+  .dark .leaflet-popup-tip {
+    background: #1f2937 !important;
   }
   
-  /* Getaround Price Marker Styling */
-  .price-marker {
+  .custom-map-marker {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* Getaround Magenta Price Tag Marker */
+  .price-tag-marker {
     background: #A322DA;
     color: white;
     padding: 6px 14px;
@@ -88,10 +98,12 @@
     box-shadow: 0 4px 15px rgba(163, 34, 218, 0.4);
     transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     cursor: pointer;
+    white-space: nowrap;
+    text-align: center;
   }
-  .price-marker:hover {
-    transform: scale(1.15);
-    z-index: 1000;
+  .price-tag-marker:hover {
+    transform: scale(1.1);
+    z-index: 1000 !important;
   }
 
   /* No scrollbar utility */

@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import ImageCarousel from '../components/ImageCarousel';
 import { Fuel, Settings, CheckCircle, Navigation, Upload, DollarSign, Camera, MapPin, X, Plus, Search, Map as MapIcon, Check, AlertCircle, Move } from 'lucide-react';
 import { CAR_BRANDS } from '../data/cars';
 import { checkAuthStatus } from '../services/firebase';
 
-declare const google: any;
+declare const L: any;
 
-const PRIORITY_CITIES = ["İstanbul", "Ankara", "İzmir", "Antalya"];
 const TURKEY_CITIES = [
   "Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Amasya", "Artvin", "Aydın", "Balıkesir", "Bilecik", "Bingöl", "Bitlis", "Bolu", "Burdur", "Bursa", "Çanakkale", "Çankırı", "Çorum", "Denizli", "Diyarbakır", "Edirne", "Elazığ", "Erzincan", "Erzurum", "Eskişehir", "Gaziantep", "Giresun", "Gümüşhane", "Hakkari", "Hatay", "Isparta", "Mersin", "Kars", "Kastamonu", "Kayseri", "Kırklareli", "Kırşehir", "Kocaeli", "Konya", "Kütahya", "Malatya", "Manisa", "Kahramanmaraş", "Mardin", "Muğla", "Muş", "Nevşehir", "Niğde", "Ordu", "Rize", "Sakarya", "Samsun", "Siirt", "Sinop", "Sivas", "Tekirdağ", "Tokat", "Trabzon", "Tunceli", "Şanlıurfa", "Uşak", "Van", "Yozgat", "Zonguldak", "Aksaray", "Bayburt", "Karaman", "Kırıkkale", "Batman", "Şırnak", "Bartın", "Ardahan", "Iğdır", "Yalova", "Karabük", "Kilis", "Osmaniye", "Düzce"
 ].sort();
@@ -21,12 +19,10 @@ const ListCarPage = () => {
   const [step, setStep] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<any>(null);
+  const mapInstanceRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
   
   const [isLocating, setIsLocating] = useState(false);
-  const [isGeocoding, setIsGeocoding] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [locationVerified, setLocationVerified] = useState(false);
   
   const [formData, setFormData] = useState({
@@ -49,75 +45,63 @@ const ListCarPage = () => {
 
   useEffect(() => {
     if (!checkAuthStatus()) {
-      alert("Araç listelemek için lütfen giriş yapınız.");
+      alert("Lütfen giriş yapınız.");
       navigate('/login');
     }
   }, [navigate]);
 
-  // Load Google Maps for Step 1
+  // Load Leaflet for Step 1
   useEffect(() => {
-    if (step === 1 && mapContainerRef.current && !mapRef.current) {
-        const initMap = async () => {
-            const { Map } = await google.maps.importLibrary("maps");
-            mapRef.current = new Map(mapContainerRef.current, {
-                center: { lat: 39.0, lng: 35.0 },
-                zoom: 6,
-                disableDefaultUI: false,
-                mapId: 'MINI_MAP_LISTING'
-            });
-        };
-        initMap();
+    if (step === 1 && mapContainerRef.current && !mapInstanceRef.current && typeof L !== 'undefined') {
+        const map = L.map(mapContainerRef.current, { zoomControl: false }).setView([39.0, 35.0], 6);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+        mapInstanceRef.current = map;
     }
   }, [step]);
 
   const updateMarker = (lat: number, lng: number) => {
-    if (!mapRef.current) return;
+    if (!mapInstanceRef.current) return;
     
     if (markerRef.current) {
-      markerRef.current.setPosition({ lat, lng });
+      markerRef.current.setLatLng([lat, lng]);
     } else {
-      markerRef.current = new google.maps.Marker({
-        position: { lat, lng },
-        map: mapRef.current,
-        draggable: true,
-        animation: google.maps.Animation.DROP
-      });
-
-      markerRef.current.addListener('dragend', () => {
-        const pos = markerRef.current.getPosition();
-        setFormData(prev => ({ ...prev, exactLat: pos.lat(), exactLng: pos.lng() }));
+      markerRef.current = L.marker([lat, lng], { draggable: true }).addTo(mapInstanceRef.current);
+      markerRef.current.on('dragend', () => {
+        const pos = markerRef.current.getLatLng();
+        setFormData(prev => ({ ...prev, exactLat: pos.lat, exactLng: pos.lng }));
         setLocationVerified(true);
       });
     }
     
-    mapRef.current.setCenter({ lat, lng });
-    mapRef.current.setZoom(16);
+    mapInstanceRef.current.setView([lat, lng], 15);
   };
 
   const verifyLocation = async () => {
     if (!formData.city || !formData.district) return alert("Lütfen Şehir ve İlçe giriniz.");
-    setIsGeocoding(true);
     
-    const geocoder = new google.maps.Geocoder();
-    const address = `${formData.neighborhood} ${formData.district} ${formData.city} Türkiye`;
-    
-    geocoder.geocode({ address }, (results: any, status: any) => {
-      if (status === "OK") {
-        const { lat, lng } = results[0].geometry.location;
-        setFormData(prev => ({ ...prev, exactLat: lat(), exactLng: lng() }));
+    try {
+      const query = `${formData.district}, ${formData.city}, Turkey`;
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+      const data = await response.json();
+      
+      if (data && data[0]) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+        setFormData(prev => ({ ...prev, exactLat: lat, exactLng: lon }));
         setLocationVerified(true);
-        updateMarker(lat(), lng());
+        updateMarker(lat, lon);
       } else {
-        alert("Konum doğrulanamadı. Lütfen haritadan kendiniz seçin.");
+        alert("Konum bulunamadı. Lütfen haritadan seçin.");
       }
-      setIsGeocoding(false);
-    });
+    } catch (e) {
+      alert("Hata oluştu. Haritadan kendiniz seçebilirsiniz.");
+    }
   };
 
   const handleCurrentLocation = () => {
     if (!navigator.geolocation) return alert("GPS desteklenmiyor.");
     setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(async (pos) => {
+    navigator.geolocation.getCurrentPosition((pos) => {
       const { latitude, longitude } = pos.coords;
       setFormData(prev => ({ ...prev, exactLat: latitude, exactLng: longitude }));
       setLocationVerified(true);
@@ -186,7 +170,7 @@ const ListCarPage = () => {
         <div className="max-w-3xl mx-auto bg-white dark:bg-gray-800 rounded-[2.5rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-700">
           <div className="p-8 md:p-12">
             <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-2">Aracını Listele</h1>
-            <p className="text-gray-500 mb-10">Adım {step}/4</p>
+            <p className="text-gray-500 mb-10 text-sm font-bold uppercase tracking-widest">Adım {step}/4</p>
 
             <form onSubmit={handleSubmit}>
               {step === 1 && (
@@ -199,21 +183,21 @@ const ListCarPage = () => {
                       <input type="text" placeholder="İlçe" className={inputClassName} value={formData.district} onChange={(e) => { setFormData({...formData, district: e.target.value}); setLocationVerified(false); }} />
                   </div>
                   
-                  <div className="relative w-full aspect-video rounded-[2rem] overflow-hidden border-2 border-gray-100 dark:border-gray-700 bg-gray-50 shadow-inner">
-                      <div ref={mapContainerRef} className="w-full h-full z-10" />
+                  <div className="relative w-full aspect-video rounded-[2rem] overflow-hidden border-2 border-gray-100 dark:border-gray-700 bg-gray-50 shadow-inner z-0">
+                      <div ref={mapContainerRef} className="w-full h-full" />
                       {!locationVerified && (
                          <div className="absolute inset-0 bg-black/10 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center pointer-events-none">
                             <div className="bg-white/95 px-6 py-4 rounded-3xl shadow-xl flex flex-col items-center gap-2">
                                <MapIcon size={32} className="text-primary-600 animate-bounce"/>
-                               <p className="text-xs font-black uppercase tracking-wider">Konumu Belirlemek İçin Bilgileri Girin</p>
+                               <p className="text-[10px] font-black uppercase tracking-wider">Konumu Doğrulayın</p>
                             </div>
                          </div>
                       )}
                   </div>
 
                   <div className="flex gap-2">
-                      <button type="button" onClick={handleCurrentLocation} className="flex-1 bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-bold flex items-center justify-center gap-2"><Navigation size={18}/> Mevcut Konumum</button>
-                      <button type="button" onClick={verifyLocation} className="flex-1 bg-primary-600 text-white p-4 rounded-2xl font-bold flex items-center justify-center gap-2"><MapPin size={18}/> Adresi Doğrula</button>
+                      <button type="button" onClick={handleCurrentLocation} className="flex-1 bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all hover:bg-gray-100"><Navigation size={18}/> Mevcut Konumum</button>
+                      <button type="button" onClick={verifyLocation} className="flex-1 bg-primary-600 text-white p-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all hover:bg-primary-700"><MapPin size={18}/> Adresi Doğrula</button>
                   </div>
 
                   <hr className="dark:border-gray-700 border-gray-100 my-8" />
@@ -224,66 +208,67 @@ const ListCarPage = () => {
                   </div>
                   {formData.brand && <select className={inputClassName} value={formData.model} onChange={(e) => setFormData({...formData, model: e.target.value})}><option value="">Model Seç</option>{availableModels.map((m:any) => <option key={m} value={m}>{m}</option>)}</select>}
                   
-                  <button type="button" disabled={!formData.brand || !locationVerified} onClick={() => setStep(2)} className="w-full bg-primary-600 disabled:opacity-50 text-white py-5 rounded-2xl font-black text-lg mt-8 shadow-xl shadow-primary-600/20">Devam Et</button>
+                  <button type="button" disabled={!formData.brand || !locationVerified} onClick={() => setStep(2)} className="w-full bg-primary-600 disabled:opacity-50 text-white py-5 rounded-2xl font-black text-lg mt-8 shadow-xl shadow-primary-600/20 active:scale-[0.98] transition-all">Devam Et</button>
                 </div>
               )}
 
-              {step === 2 && (
-                <div className="space-y-8 animate-in slide-in-from-right-10">
-                  <div>
-                    <label className="text-xs font-black uppercase tracking-widest text-gray-400 block mb-4 ml-1">Yakıt Tipi</label>
-                    <div className="grid grid-cols-2 gap-3">{fuelTypes.map(f => <button key={f} type="button" onClick={() => setFormData({...formData, fuelType: f})} className={`p-4 rounded-2xl border-2 font-bold transition-all ${formData.fuelType === f ? 'border-primary-600 bg-primary-50 text-primary-700' : 'border-gray-100 dark:border-gray-700 text-gray-500'}`}>{f}</button>)}</div>
+              {step >= 2 && (
+                  /* Adım 2, 3 ve 4 logicleri mevcut kodunuzla aynı kalabilir, sadece step 1'deki harita Leaflet'e döndü */
+                  <div className="animate-in slide-in-from-right-10">
+                    {/* Mevcut step 2-4 logicleri... */}
+                    {step === 2 && (
+                        <div className="space-y-8">
+                             <div>
+                                <label className="text-xs font-black uppercase tracking-widest text-gray-400 block mb-4 ml-1">Yakıt Tipi</label>
+                                <div className="grid grid-cols-2 gap-3">{fuelTypes.map(f => <button key={f} type="button" onClick={() => setFormData({...formData, fuelType: f})} className={`p-4 rounded-2xl border-2 font-bold transition-all ${formData.fuelType === f ? 'border-primary-600 bg-primary-50 text-primary-700' : 'border-gray-100 dark:border-gray-700 text-gray-500'}`}>{f}</button>)}</div>
+                            </div>
+                            <div>
+                                <label className="text-xs font-black uppercase tracking-widest text-gray-400 block mb-4 ml-1">Vites Tipi</label>
+                                <div className="flex gap-3">{transmissions.map(t => <button key={t} type="button" onClick={() => setFormData({...formData, transmission: t})} className={`flex-1 p-4 rounded-2xl border-2 font-bold transition-all ${formData.transmission === t ? 'border-primary-600 bg-primary-50 text-primary-700' : 'border-gray-100 dark:border-gray-700 text-gray-500'}`}>{t}</button>)}</div>
+                            </div>
+                            <div className="flex gap-4 mt-12">
+                                <button type="button" onClick={() => setStep(1)} className="flex-1 bg-gray-100 dark:bg-gray-700 py-5 rounded-2xl font-bold">Geri</button>
+                                <button type="button" disabled={!formData.fuelType || !formData.transmission} onClick={() => setStep(3)} className="flex-[2] bg-primary-600 text-white py-5 rounded-2xl font-black shadow-xl shadow-primary-600/20">Devam Et</button>
+                            </div>
+                        </div>
+                    )}
+                    {step === 3 && (
+                        <div className="space-y-8">
+                            <div>
+                                <label className="text-xs font-black uppercase tracking-widest text-gray-400 block mb-4 ml-1">Araç Fotoğrafları</label>
+                                <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed rounded-[2.5rem] p-12 text-center cursor-pointer bg-gray-50 dark:bg-gray-900 shadow-inner">
+                                <input type="file" ref={fileInputRef} className="hidden" multiple accept="image/*" onChange={handleImageUpload} />
+                                <div className="flex flex-col items-center">
+                                    <Upload size={32} className="text-primary-600 mb-4" />
+                                    <p className="font-black text-gray-900 dark:text-white uppercase tracking-widest text-sm">Fotoğraf Seç</p>
+                                </div>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-xs font-black uppercase tracking-widest text-gray-400 block mb-4 ml-1">Günlük Ücret (₺)</label>
+                                <input type="number" placeholder="1500" className={`${inputClassName} py-5 text-2xl font-black`} value={formData.pricePerDay} onChange={(e) => setFormData({...formData, pricePerDay: e.target.value})} />
+                            </div>
+                            <div className="flex gap-4 mt-8">
+                                <button type="button" onClick={() => setStep(2)} className="flex-1 bg-gray-100 dark:bg-gray-700 py-5 rounded-2xl font-bold">Geri</button>
+                                <button type="button" disabled={formData.images.length === 0 || !formData.pricePerDay} onClick={() => setStep(4)} className="flex-[2] bg-primary-600 text-white py-5 rounded-2xl font-black shadow-xl shadow-primary-600/20">İncele</button>
+                            </div>
+                        </div>
+                    )}
+                    {step === 4 && (
+                        <div className="text-center animate-in zoom-in-95">
+                            <h3 className="text-3xl font-black mb-2 text-gray-900 dark:text-white uppercase tracking-tight">{formData.year} {formData.brand} {formData.model}</h3>
+                            <p className="text-gray-500 font-bold mb-10">{formData.district} / {formData.city}</p>
+                            <div className="bg-primary-50 dark:bg-primary-900/20 p-8 rounded-[2rem] mb-12 flex flex-col items-center">
+                                <span className="text-[10px] font-black text-primary-600 uppercase tracking-widest mb-2">Günlük Kazancın</span>
+                                <span className="text-5xl font-black text-primary-700 dark:text-primary-300">₺{(Number(formData.pricePerDay) * 0.85).toFixed(0)}</span>
+                            </div>
+                            <div className="flex gap-4">
+                                <button type="button" onClick={() => setStep(3)} className="flex-1 bg-gray-100 dark:bg-gray-700 py-5 rounded-2xl font-bold">Düzenle</button>
+                                <button type="submit" className="flex-[2] bg-primary-600 text-white py-5 rounded-2xl font-black shadow-xl shadow-primary-600/20">İlanı Başlat</button>
+                            </div>
+                        </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="text-xs font-black uppercase tracking-widest text-gray-400 block mb-4 ml-1">Vites Tipi</label>
-                    <div className="flex gap-3">{transmissions.map(t => <button key={t} type="button" onClick={() => setFormData({...formData, transmission: t})} className={`flex-1 p-4 rounded-2xl border-2 font-bold transition-all ${formData.transmission === t ? 'border-primary-600 bg-primary-50 text-primary-700' : 'border-gray-100 dark:border-gray-700 text-gray-500'}`}>{t}</button>)}</div>
-                  </div>
-                   <div className="flex gap-4 mt-12">
-                    <button type="button" onClick={() => setStep(1)} className="flex-1 bg-gray-100 dark:bg-gray-700 py-5 rounded-2xl font-bold">Geri</button>
-                    <button type="button" disabled={!formData.fuelType || !formData.transmission} onClick={() => setStep(3)} className="flex-[2] bg-primary-600 text-white py-5 rounded-2xl font-black shadow-xl shadow-primary-600/20">Devam Et</button>
-                  </div>
-                </div>
-              )}
-
-              {step === 3 && (
-                <div className="space-y-8 animate-in slide-in-from-right-10">
-                   <div>
-                    <label className="text-xs font-black uppercase tracking-widest text-gray-400 block mb-4 ml-1">Araç Fotoğrafları</label>
-                    <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed rounded-[2.5rem] p-12 text-center cursor-pointer bg-gray-50 dark:bg-gray-900 shadow-inner">
-                      <input type="file" ref={fileInputRef} className="hidden" multiple accept="image/*" onChange={handleImageUpload} />
-                      <div className="flex flex-col items-center">
-                        <Upload size={32} className="text-primary-600 mb-4" />
-                        <p className="font-black text-gray-900 dark:text-white uppercase tracking-widest text-sm">Fotoğraf Seç</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-black uppercase tracking-widest text-gray-400 block mb-4 ml-1">Günlük Ücret (₺)</label>
-                    <input type="number" placeholder="1500" className={`${inputClassName} py-5 text-2xl font-black`} value={formData.pricePerDay} onChange={(e) => setFormData({...formData, pricePerDay: e.target.value})} />
-                  </div>
-                   <div className="flex gap-4 mt-8">
-                    <button type="button" onClick={() => setStep(2)} className="flex-1 bg-gray-100 dark:bg-gray-700 py-5 rounded-2xl font-bold">Geri</button>
-                    <button type="button" disabled={formData.images.length === 0 || !formData.pricePerDay} onClick={() => setStep(4)} className="flex-[2] bg-primary-600 text-white py-5 rounded-2xl font-black shadow-xl shadow-primary-600/20">İncele</button>
-                  </div>
-                </div>
-              )}
-
-              {step === 4 && (
-                <div className="text-center animate-in zoom-in-95">
-                  <h3 className="text-3xl font-black mb-2 text-gray-900 dark:text-white uppercase tracking-tight">{formData.year} {formData.brand} {formData.model}</h3>
-                  <p className="text-gray-500 font-bold mb-10">{formData.district} / {formData.city}</p>
-                  
-                  <div className="bg-primary-50 dark:bg-primary-900/20 p-8 rounded-[2rem] mb-12 flex flex-col items-center">
-                      <span className="text-[10px] font-black text-primary-600 uppercase tracking-widest mb-2">Günlük Kazancın</span>
-                      <span className="text-5xl font-black text-primary-700 dark:text-primary-300">₺{(Number(formData.pricePerDay) * 0.85).toFixed(0)}</span>
-                  </div>
-
-                  <div className="flex gap-4">
-                    <button type="button" onClick={() => setStep(3)} className="flex-1 bg-gray-100 dark:bg-gray-700 py-5 rounded-2xl font-bold">Düzenle</button>
-                    <button type="submit" className="flex-[2] bg-primary-600 text-white py-5 rounded-2xl font-black shadow-xl shadow-primary-600/20">İlanı Başlat</button>
-                  </div>
-                </div>
               )}
             </form>
           </div>
