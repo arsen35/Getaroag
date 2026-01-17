@@ -1,5 +1,4 @@
 
-
 import React, { ReactNode, Component } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from './pages/Home';
@@ -20,11 +19,11 @@ interface ErrorBoundaryState {
   hasError: boolean;
 }
 
-// Fixed: Inheriting from 'Component' directly to ensure 'this.state' and 'this.props' are correctly recognized by TypeScript
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// Fix: Using React.Component explicitly helps TypeScript resolve generic state and props from the base class.
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    // Initialize state
+    // Fix: Initializing state which is now correctly recognized as an inherited property.
     this.state = { hasError: false };
   }
 
@@ -37,7 +36,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   render() {
-    // Fixed: 'this.state' is now properly typed
+    // Fix: Accessing this.state which is correctly inherited from React.Component.
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center bg-gray-50 dark:bg-gray-900">
@@ -52,7 +51,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
         </div>
       );
     }
-    // Fixed: 'this.props' is now properly typed
+    // Fix: Accessing this.props which is correctly inherited from React.Component.
     return this.props.children;
   }
 }

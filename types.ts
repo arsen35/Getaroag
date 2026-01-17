@@ -31,6 +31,9 @@ export interface SearchFilters {
   returnDate: string;
   priceRange?: string;
   carType?: string;
+  transmission?: string;
+  fuelType?: string;
+  ageGroup?: string;
 }
 
 export interface User {
