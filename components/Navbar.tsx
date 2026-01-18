@@ -1,48 +1,36 @@
-import React from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Car, UserCircle, LogOut, Sun, Moon, UserPlus, LogIn, Search, Plus, Heart, Home } from 'lucide-react';
+import { Car, UserCircle, LogOut, Sun, Moon, UserPlus, LogIn, Search, Plus, Heart, Home, Bell, X, Info, CheckCircle, Clock } from 'lucide-react';
 import { checkAuthStatus } from '../services/firebase';
 import { useTheme } from '../context/ThemeContext';
 
-// Extracted Component
 const MobileBottomNav = () => {
   const location = useLocation();
   const isLoggedIn = checkAuthStatus();
-  
   const isActive = (path: string) => location.pathname === path;
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white dark:bg-gray-900 z-[9000] pb-safe transition-colors duration-300 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] dark:shadow-[0_-5px_20px_rgba(0,0,0,0.4)] border-t dark:border-gray-800">
       <div className="relative flex justify-between items-center px-2 h-16">
-        
-        {/* Left Items */}
         <Link to="/" className={`flex-1 flex flex-col items-center justify-center space-y-1 ${isActive('/') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'}`}>
           <Home size={24} strokeWidth={isActive('/') ? 2.5 : 2} />
           <span className="text-[10px] font-medium">Akış</span>
         </Link>
-        
         <Link to="/search" className={`flex-1 flex flex-col items-center justify-center space-y-1 ${isActive('/search') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'}`}>
           <Search size={24} strokeWidth={isActive('/search') ? 2.5 : 2} />
           <span className="text-[10px] font-medium">Ara</span>
         </Link>
-
-        {/* Floating Center Button */}
         <div className="relative -top-6">
-            <Link 
-              to="/list-car" 
-              className="flex items-center justify-center w-16 h-16 bg-primary-600 hover:bg-primary-700 text-white rounded-full shadow-lg shadow-primary-600/40 border-4 border-gray-50 dark:border-gray-900 transition-all transform active:scale-95"
-            >
+            <Link to="/list-car" className="flex items-center justify-center w-16 h-16 bg-primary-600 hover:bg-primary-700 text-white rounded-full shadow-lg shadow-primary-600/40 border-4 border-gray-50 dark:border-gray-900 transition-all transform active:scale-95">
               <Plus size={32} />
             </Link>
         </div>
-
-        {/* Right Items */}
         <Link to="/favorites" className={`flex-1 flex flex-col items-center justify-center space-y-1 ${isActive('/favorites') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'}`}>
           <Heart size={24} className={isActive('/favorites') ? "fill-primary-600 dark:fill-primary-400" : ""}/>
           <span className="text-[10px] font-medium">Favoriler</span>
         </Link>
-
         {isLoggedIn ? (
           <Link to="/profile" className={`flex-1 flex flex-col items-center justify-center space-y-1 ${isActive('/profile') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'}`}>
             <UserCircle size={24} strokeWidth={isActive('/profile') ? 2.5 : 2} />
@@ -59,27 +47,88 @@ const MobileBottomNav = () => {
   );
 };
 
+// Global Toast Alert Component
+const Toast = ({ title, message, onClose }: { title: string, message: string, onClose: () => void }) => (
+  <div className="fixed top-20 md:top-6 right-4 z-[10000] w-full max-w-sm animate-in slide-in-from-right fade-in duration-300">
+    <div className="bg-primary-600 text-white p-5 rounded-[2rem] shadow-2xl flex items-start gap-4 border border-white/20 backdrop-blur-md">
+      <div className="bg-white/20 p-2 rounded-full mt-1">
+        <Bell size={20} />
+      </div>
+      <div className="flex-1">
+        <h4 className="font-black text-xs uppercase tracking-widest">{title}</h4>
+        <p className="text-[11px] font-medium mt-1 leading-relaxed opacity-90">{message}</p>
+      </div>
+      <button onClick={onClose} className="text-white/60 hover:text-white transition-colors">
+        <X size={18} />
+      </button>
+    </div>
+  </div>
+);
+
 const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isLoggedIn = checkAuthStatus();
   const { theme, toggleTheme } = useTheme();
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [activeToast, setActiveToast] = useState<{ title: string, message: string } | null>(null);
+
+  useEffect(() => {
+    const loadNotifications = () => {
+      const saved = JSON.parse(localStorage.getItem('notifications') || '[]');
+      if (saved.length === 0 && isLoggedIn) {
+        const initial = [
+          { id: 1, title: 'Hoş Geldiniz!', message: 'Getaroag dünyasına katıldığınız için teşekkürler. Şehrindeki binlerce aracı keşfetmeye başla.', time: 'Az önce', read: false, type: 'info' }
+        ];
+        setNotifications(initial);
+        localStorage.setItem('notifications', JSON.stringify(initial));
+      } else {
+        setNotifications(saved);
+      }
+    };
+
+    loadNotifications();
+    
+    // Custom event to handle new notifications from other pages
+    const handleNewNotify = () => {
+      const saved = JSON.parse(localStorage.getItem('notifications') || '[]');
+      setNotifications(saved);
+      if (saved.length > 0 && !saved[0].read) {
+        setActiveToast({ title: saved[0].title, message: saved[0].message });
+        setTimeout(() => setActiveToast(null), 5000);
+      }
+    };
+
+    window.addEventListener('storage', loadNotifications);
+    window.addEventListener('newNotification', handleNewNotify);
+    return () => {
+      window.removeEventListener('storage', loadNotifications);
+      window.removeEventListener('newNotification', handleNewNotify);
+    };
+  }, [isLoggedIn]);
 
   const handleLogout = () => {
     localStorage.removeItem('isLoggedIn');
     navigate('/');
   };
 
+  const markAllRead = () => {
+    const updated = notifications.map(n => ({ ...n, read: true }));
+    setNotifications(updated);
+    localStorage.setItem('notifications', JSON.stringify(updated));
+  };
+
   const isActive = (path: string) => location.pathname === path;
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <>
-      {/* DESKTOP TOP NAVIGATION (Hidden on Mobile) */}
+      {activeToast && <Toast title={activeToast.title} message={activeToast.message} onClose={() => setActiveToast(null)} />}
+
       <nav className="hidden md:block bg-white/95 dark:bg-gray-900/95 backdrop-blur-md sticky top-0 z-50 border-b border-gray-100 dark:border-gray-800 transition-colors duration-300">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            
-            {/* Logo */}
             <Link to="/" className="flex items-center space-x-2 group">
               <div className="bg-primary-600 text-white p-2 rounded-lg group-hover:bg-primary-700 transition-colors">
                 <Car size={24} />
@@ -89,63 +138,80 @@ const Navbar = () => {
               </span>
             </Link>
 
-            {/* Desktop Menu Items */}
             <div className="flex items-center space-x-4">
-               {/* Theme Toggle */}
               <button 
                 onClick={toggleTheme} 
-                className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors mr-2"
-                title={theme === 'light' ? "Karanlık Mod" : "Aydınlık Mod"}
+                className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               >
                 {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
               </button>
 
-              <Link to="/favorites" className={`text-gray-600 dark:text-gray-300 hover:text-primary-600 font-medium transition-colors px-3 py-2 flex items-center gap-1 ${isActive('/favorites') ? 'text-primary-600 dark:text-primary-400' : ''}`}>
-                 <Heart size={18} /> Favorilerim
-              </Link>
-
-              <Link to="/search" className="text-gray-600 dark:text-gray-300 hover:text-primary-600 font-medium transition-colors px-3 py-2">Araç Kirala</Link>
-              
-              {isLoggedIn ? (
-                <div className="flex items-center gap-4">
-                  <Link 
-                    to="/profile"
-                    className="flex items-center space-x-2 text-gray-700 dark:text-gray-200 hover:text-primary-600 font-medium"
-                  >
-                    <UserCircle size={20} />
-                    <span>Hesabım</span>
-                  </Link>
+              {isLoggedIn && (
+                <div className="relative">
                   <button 
-                    onClick={handleLogout}
-                    className="text-gray-400 hover:text-red-500"
-                    title="Çıkış Yap"
+                    onClick={() => setShowNotifications(!showNotifications)}
+                    className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative"
                   >
-                    <LogOut size={20} />
+                    <Bell size={20} />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-gray-900 animate-pulse"></span>
+                    )}
                   </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <Link 
-                    to="/login" 
-                    className="flex items-center gap-2 text-gray-700 dark:text-gray-200 hover:text-primary-600 font-medium px-3 py-2"
-                  >
-                    <LogIn size={18} /> Giriş Yap
-                  </Link>
-                  <Link 
-                    to="/signup" 
-                    className="bg-primary-600 text-white px-5 py-2.5 rounded-full font-bold hover:bg-primary-700 transition-colors shadow-md shadow-primary-200 flex items-center gap-2"
-                  >
-                    <UserPlus size={18} /> Üye Ol
-                  </Link>
+                  {showNotifications && (
+                    <div className="absolute right-0 mt-4 w-80 bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border dark:border-gray-700 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                      <div className="p-4 bg-gray-50 dark:bg-gray-700/50 flex justify-between items-center border-b dark:border-gray-700">
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Bildirimler</span>
+                        <button onClick={markAllRead} className="text-[10px] font-black text-primary-600 uppercase tracking-widest hover:text-primary-700">Tümünü Oku</button>
+                      </div>
+                      <div className="max-h-[360px] overflow-y-auto custom-scrollbar">
+                        {notifications.length === 0 ? (
+                          <div className="p-12 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">Henüz bildirim yok.</div>
+                        ) : (
+                          notifications.map(n => (
+                            <div key={n.id} className={`p-5 border-b last:border-none dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors relative ${!n.read ? 'bg-primary-50/20 dark:bg-primary-900/5' : ''}`}>
+                               {!n.read && <div className="absolute top-6 left-2 w-1.5 h-1.5 bg-primary-600 rounded-full"></div>}
+                               <div className="flex gap-3">
+                                  <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center ${n.type === 'success' ? 'bg-green-100 text-green-600' : 'bg-primary-100 text-primary-600'}`}>
+                                     {n.type === 'success' ? <CheckCircle size={14}/> : <Info size={14}/>}
+                                  </div>
+                                  <div className="flex-1">
+                                     <div className="font-black text-xs text-gray-900 dark:text-white mb-1 uppercase tracking-tight">{n.title}</div>
+                                     <div className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed font-medium">{n.message}</div>
+                                     <div className="text-[9px] text-gray-400 mt-2 font-black uppercase flex items-center gap-1"><Clock size={10}/> {n.time}</div>
+                                  </div>
+                               </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                      <div className="p-4 bg-gray-50 dark:bg-gray-700/30 text-center">
+                         <Link to="/profile" onClick={() => setShowNotifications(false)} className="text-[10px] font-black text-gray-500 uppercase tracking-widest hover:text-primary-600 transition-colors">Tüm Aktiviteyi Gör</Link>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
+              <Link to="/favorites" className={`text-gray-600 dark:text-gray-300 hover:text-primary-600 font-medium transition-colors px-3 py-2 flex items-center gap-1 ${isActive('/favorites') ? 'text-primary-600 dark:text-primary-400' : ''}`}>
+                 <Heart size={18} /> Favorilerim
+              </Link>
+              
+              {isLoggedIn ? (
+                <div className="flex items-center gap-4">
+                  <Link to="/profile" className={`flex items-center space-x-2 text-gray-700 dark:text-gray-200 hover:text-primary-600 font-medium ${isActive('/profile') ? 'text-primary-600' : ''}`}>
+                    <UserCircle size={20} />
+                    <span>Hesabım</span>
+                  </Link>
+                  <button onClick={handleLogout} className="text-gray-400 hover:text-red-500"><LogOut size={20} /></button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <Link to="/login" className="text-gray-700 dark:text-gray-200 hover:text-primary-600 font-medium px-3 py-2">Giriş Yap</Link>
+                  <Link to="/signup" className="bg-primary-600 text-white px-5 py-2.5 rounded-full font-bold hover:bg-primary-700 transition-colors shadow-md flex items-center gap-2">Üye Ol</Link>
+                </div>
+              )}
               <div className="h-8 w-px bg-gray-200 dark:bg-gray-700 mx-2"></div>
-
-              <Link
-                to="/list-car"
-                className="bg-white dark:bg-gray-800 border-2 border-primary-600 text-primary-600 dark:text-primary-400 px-5 py-2.5 rounded-full font-bold hover:bg-primary-50 dark:hover:bg-gray-700 transition-all duration-300 shadow-sm hover:shadow-md"
-              >
+              <Link to="/list-car" className="bg-white dark:bg-gray-800 border-2 border-primary-600 text-primary-600 dark:text-primary-400 px-5 py-2.5 rounded-full font-bold hover:bg-primary-50 dark:hover:bg-gray-700 transition-all duration-300 shadow-sm">
                 Aracını Listele
               </Link>
             </div>
@@ -153,10 +219,7 @@ const Navbar = () => {
         </div>
       </nav>
 
-      {/* MOBILE APP-LIKE NAVIGATION */}
-      
-      {/* Mobile Top Bar */}
-      <div className="md:hidden sticky top-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md px-4 py-3 flex justify-between items-center shadow-sm dark:border-b dark:border-gray-800 transition-colors duration-300">
+      <div className="md:hidden sticky top-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md px-4 py-3 flex justify-between items-center shadow-sm transition-colors duration-300">
          <Link to="/" className="flex items-center space-x-2">
             <div className="bg-primary-600 text-white p-1.5 rounded-lg">
               <Car size={20} />
@@ -165,16 +228,16 @@ const Navbar = () => {
               Getaroag
             </span>
           </Link>
-
-          <button 
-            onClick={toggleTheme}
-            className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          >
-            {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-          </button>
+          <div className="flex items-center gap-2">
+            {isLoggedIn && (
+               <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 text-gray-600 dark:text-gray-300 relative">
+                  <Bell size={20} />
+                  {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full"></span>}
+               </button>
+            )}
+            <button onClick={toggleTheme} className="p-2 text-gray-600 dark:text-gray-300">{theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}</button>
+          </div>
       </div>
-
-      {/* Mobile Bottom Navigation - Rendered via Portal to escape transform contexts */}
       {createPortal(<MobileBottomNav />, document.body)}
     </>
   );

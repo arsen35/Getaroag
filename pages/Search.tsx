@@ -1,16 +1,16 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { ChevronDown, Map as MapIcon, List, Heart, X, Search as SearchIcon, Calendar, Star, Filter } from 'lucide-react';
+import { Map as MapIcon, List, Heart, Search as SearchIcon, Calendar, Star, Filter, ChevronRight, Bell } from 'lucide-react';
 import { Car } from '../types';
 import { MOCK_CARS } from '../data/mockData';
+import CustomCalendar from '../components/CustomCalendar';
 
 declare const L: any;
 
-// Helper for Turkish Case-Insensitive comparison
 const trNormalize = (str: string) => {
-  return (str || "").toLocaleLowerCase('tr-TR').trim()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // Normalization for even more robust searching
+  return (str || "").toLocaleLowerCase('tr-TR').trim();
 };
 
 const SearchPage = () => {
@@ -18,17 +18,21 @@ const SearchPage = () => {
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [favorites, setFavorites] = useState<number[]>([]);
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const markerLayerRef = useRef<any>(null);
+  const mapInstance = useRef<any>(null);
+  const markersGroupRef = useRef<any>(null);
 
-  // Filter States
   const [allCars, setAllCars] = useState<Car[]>([]);
   const [searchQuery, setSearchQuery] = useState(state?.location || "");
   const [transmission, setTransmission] = useState(state?.transmission || "");
   const [fuelType, setFuelType] = useState(state?.fuelType || "");
+  const [dates, setDates] = useState({
+    start: state?.pickup || '',
+    end: state?.dropoff || ''
+  });
 
   useEffect(() => {
     const savedFavs = localStorage.getItem('favorites');
@@ -42,32 +46,46 @@ const SearchPage = () => {
         const stored = localStorage.getItem('myCars');
         if (stored) {
           const parsed = JSON.parse(stored);
-          localCars = Array.isArray(parsed) ? parsed.filter(c => c && typeof c === 'object') : [];
+          localCars = Array.isArray(parsed) ? parsed : [];
         }
       } catch (e) { console.error(e); }
       const combined = [...MOCK_CARS, ...localCars].filter(car => car && car.id);
       setAllCars(combined);
+      
+      // SİMÜLASYON: Eğer favorilerde bir araç varsa ve "Şu an müsait" ise bildirim gönder (Demo amaçlı)
+      if (savedFavs && JSON.parse(savedFavs).length > 0) {
+        const favIds = JSON.parse(savedFavs);
+        const randomFav = combined.find(c => favIds.includes(Number(c.id)));
+        if (randomFav && Math.random() > 0.7) { // %30 ihtimalle bildirim tetikle
+          const notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
+          const alreadyNotified = notifications.some((n:any) => n.title === 'Favori Aracın Müsait!');
+          if (!alreadyNotified) {
+             notifications.unshift({
+               id: Date.now(),
+               title: 'Favori Aracın Müsait!',
+               message: `Takip ettiğin ${randomFav.brand} ${randomFav.model} şu an kiralanmaya hazır. Fırsatı kaçırma!`,
+               time: 'Şimdi',
+               read: false,
+               type: 'info'
+             });
+             localStorage.setItem('notifications', JSON.stringify(notifications.slice(0, 15)));
+             window.dispatchEvent(new Event('newNotification'));
+          }
+        }
+      }
     };
     loadCars();
   }, []);
 
-  const toggleFavorite = (e: React.MouseEvent, carId: number | string) => {
-    e.stopPropagation();
-    const id = Number(carId);
-    let newFavs = favorites.includes(id) ? favorites.filter(f => f !== id) : [...favorites, id];
-    setFavorites(newFavs);
-    localStorage.setItem('favorites', JSON.stringify(newFavs));
-  };
-
-  // CORE FIX: Türkçe Karakter Duyarlı Akıllı Filtreleme
   const filteredCars = useMemo(() => {
-    const q = (searchQuery || "").toLocaleLowerCase('tr-TR').trim();
-    
+    const q = trNormalize(searchQuery);
+    const busyData = JSON.parse(localStorage.getItem('busyDates') || '{}');
+
     return allCars.filter(car => {
-      const cityName = (car?.location?.city || "").toLocaleLowerCase('tr-TR');
-      const districtName = (car?.location?.district || "").toLocaleLowerCase('tr-TR');
-      const brandName = (car?.brand || "").toLocaleLowerCase('tr-TR');
-      const modelName = (car?.model || "").toLocaleLowerCase('tr-TR');
+      const cityName = trNormalize(car?.location?.city);
+      const districtName = trNormalize(car?.location?.district);
+      const brandName = trNormalize(car?.brand);
+      const modelName = trNormalize(car?.model);
       
       const matchesSearch = !q || 
         cityName.includes(q) || 
@@ -77,219 +95,177 @@ const SearchPage = () => {
       
       const matchesTransmission = !transmission || car.transmission === transmission;
       const matchesFuelType = !fuelType || car.fuelType === fuelType;
+
+      let isAvailable = true;
+      if (dates.start && dates.end && busyData[car.id]) {
+        const reqStart = new Date(dates.start).getTime();
+        const reqEnd = new Date(dates.end).getTime();
+
+        isAvailable = !busyData[car.id].some((range: any) => {
+            const rangeStart = new Date(range.start).getTime();
+            const rangeEndWithBuffer = new Date(range.readyAfter).getTime();
+            return (reqStart < rangeEndWithBuffer && reqEnd >= rangeStart);
+        });
+      }
       
-      return matchesSearch && matchesTransmission && matchesFuelType;
+      return matchesSearch && matchesTransmission && matchesFuelType && isAvailable;
     });
-  }, [allCars, searchQuery, transmission, fuelType]);
+  }, [allCars, searchQuery, transmission, fuelType, dates]);
 
-  // Leaflet Map Initialization & Marker Logic
   useEffect(() => {
-    if (!mapInstanceRef.current && mapContainerRef.current && typeof L !== 'undefined') {
-      try {
-        // High Contrast & Clean Map Layer (CartoDB Positron)
-        const map = L.map(mapContainerRef.current, { zoomControl: false }).setView([41.0082, 28.9784], 12);
-        
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-          attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
-        }).addTo(map);
+    if (viewMode === 'map' && mapInstance.current) {
+        setTimeout(() => mapInstance.current.invalidateSize(), 200);
+    }
+  }, [viewMode]);
 
-        L.control.zoom({ position: 'topright' }).addTo(map);
-        markerLayerRef.current = L.layerGroup().addTo(map);
-        mapInstanceRef.current = map;
-      } catch (e) { console.error("Map Load Error:", e); }
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+
+    if (!mapInstance.current) {
+      mapInstance.current = L.map(mapContainerRef.current, { zoomControl: false, attributionControl: false }).setView([41.0082, 28.9784], 12);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(mapInstance.current);
+      markersGroupRef.current = L.featureGroup().addTo(mapInstance.current);
     }
 
-    const timer = setTimeout(() => {
-      if (mapInstanceRef.current && markerLayerRef.current) {
-        mapInstanceRef.current.invalidateSize();
-        markerLayerRef.current.clearLayers();
-        const bounds = L.latLngBounds([]);
-        let hasMarkers = false;
-        
-        filteredCars.forEach(car => {
-          if (!car?.location?.lat || !car?.location?.lng) return;
+    markersGroupRef.current.clearLayers();
+    const bounds = L.latLngBounds([]);
 
-          // Getaround Style Magenta Marker
-          const icon = L.divIcon({
-            className: 'custom-map-marker',
-            html: `<div class="price-tag-marker">₺${car.pricePerDay}</div>`,
-            iconSize: [60, 36],
-            iconAnchor: [30, 18]
-          });
-
-          const marker = L.marker([car.location.lat, car.location.lng], { icon }).addTo(markerLayerRef.current);
-          
-          const popupDiv = document.createElement('div');
-          popupDiv.className = 'car-popup-card cursor-pointer group w-[240px] rounded-2xl overflow-hidden bg-white dark:bg-gray-800 shadow-2xl';
-          popupDiv.innerHTML = `
-            <div class="h-32 overflow-hidden relative">
-                <img src="${car.image}" class="w-full h-full object-cover transition-transform group-hover:scale-105" />
-                <div class="absolute top-2 left-2 bg-primary-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow">GETAROAG CONNECT</div>
+    filteredCars.forEach(car => {
+      if (!car.location.lat || !car.location.lng) return;
+      const priceIcon = L.divIcon({
+        className: 'leaflet-marker-price-tag',
+        html: `<div class="price-tag-content">₺${car.pricePerDay}</div>`,
+        iconSize: [80, 40],
+        iconAnchor: [40, 20]
+      });
+      const marker = L.marker([car.location.lat, car.location.lng], { icon: priceIcon });
+      const popupId = `popup-btn-${car.id}`;
+      const popupContent = `
+        <div id="${popupId}" style="cursor: pointer; width: 100%; border-radius: 20px; overflow: hidden; background: white;">
+          <img src="${car.image}" style="width: 100%; height: 130px; object-fit: cover; display: block;" />
+          <div style="padding: 12px;">
+            <div style="font-weight: 900; font-size: 14px; color: #0f172a; margin-bottom: 4px; text-transform: uppercase;">${car.brand} ${car.model}</div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 11px; color: #f59e0b; font-weight: 900;">★ ${car.rating}</span>
+              <span style="font-weight: 900; color: #A322DA; font-size: 16px;">₺${car.pricePerDay}</span>
             </div>
-            <div class="p-4">
-                <h4 class="font-black text-sm text-gray-900 dark:text-white uppercase leading-tight mb-2">${car.brand} ${car.model}</h4>
-                <div class="flex justify-between items-center">
-                    <div class="flex items-center gap-1 text-[11px] font-bold text-gray-500">
-                        <span class="text-yellow-400">★</span> ${car.rating} • ${car.transmission}
-                    </div>
-                    <span class="font-black text-sm text-gray-900 dark:text-white">₺${car.pricePerDay}<span class="text-[9px] font-bold text-gray-400">/gün</span></span>
-                </div>
-            </div>
-          `;
-          
-          popupDiv.onclick = () => navigate('/payment', { state: { car } });
-
-          marker.bindPopup(popupDiv, { 
-            closeButton: false, 
-            offset: [0, -10], 
-            className: 'getaround-custom-popup'
-          });
-          
-          bounds.extend([car.location.lat, car.location.lng]);
-          hasMarkers = true;
-        });
-
-        if (hasMarkers && bounds.isValid() && filteredCars.length > 0) {
-          mapInstanceRef.current.fitBounds(bounds, { padding: [60, 60], maxZoom: 14 });
+            <div style="margin-top: 10px; background: #8b5cf6; color: white; text-align: center; padding: 8px; border-radius: 12px; font-weight: 800; font-size: 12px; text-transform: uppercase;">Detayları Gör</div>
+          </div>
+        </div>
+      `;
+      marker.bindPopup(popupContent, { closeButton: false, offset: [0, -10], className: 'custom-car-popup', maxWidth: 260 });
+      marker.on('popupopen', () => {
+        const popupEl = document.getElementById(popupId);
+        if (popupEl) {
+          popupEl.onclick = (e) => {
+            e.preventDefault();
+            navigate('/payment', { state: { car, pickupDate: dates.start, returnDate: dates.end } });
+          };
         }
-      }
-    }, 150);
+      });
+      markersGroupRef.current.addLayer(marker);
+      bounds.extend([car.location.lat, car.location.lng]);
+    });
 
-    return () => clearTimeout(timer);
-  }, [filteredCars, navigate]);
+    if (filteredCars.length > 0 && mapInstance.current && viewMode === 'map') {
+        mapInstance.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+    }
+  }, [filteredCars, dates, navigate]);
+
+  const toggleFavorite = (e: React.MouseEvent, carId: number | string) => {
+    e.stopPropagation();
+    const id = Number(carId);
+    let newFavs = favorites.includes(id) ? favorites.filter(f => f !== id) : [...favorites, id];
+    setFavorites(newFavs);
+    localStorage.setItem('favorites', JSON.stringify(newFavs));
+  };
 
   return (
-    <div className="h-screen flex flex-col bg-white dark:bg-gray-950 transition-colors">
+    <div className="h-screen flex flex-col bg-white dark:bg-gray-950 overflow-hidden">
       <Navbar />
-
-      {/* Modern Search & Filters Area */}
-      <div className="bg-white dark:bg-gray-900 border-b dark:border-gray-800 px-4 py-4 z-40 shadow-sm transition-colors">
-        <div className="container mx-auto flex flex-col lg:flex-row gap-3">
-          {/* Enhanced Search Input */}
-          <div className="flex-1 flex items-center border-2 border-gray-100 dark:border-gray-700 rounded-2xl px-5 bg-gray-50 dark:bg-gray-800 focus-within:ring-4 focus-within:ring-primary-500/10 focus-within:border-primary-500 transition-all group">
-            <SearchIcon size={20} className="text-gray-400 mr-3 group-focus-within:text-primary-500" />
-            <input 
-              type="text" 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Konum veya araç ara... (Örn: İzміr, İstanbul)" 
-              className="w-full py-3.5 bg-transparent outline-none text-sm font-bold text-gray-900 dark:text-white placeholder:text-gray-400" 
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery("")} className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors">
-                <X size={16} className="text-gray-400" />
-              </button>
-            )}
+      <div className="bg-white dark:bg-gray-900 border-b dark:border-gray-800 px-4 py-3 z-40 shrink-0">
+        <div className="container mx-auto flex flex-col lg:flex-row gap-2">
+          <div className="flex-1 flex items-center border border-gray-200 dark:border-gray-700 rounded-2xl px-4 bg-gray-50 dark:bg-gray-800 transition-all">
+            <SearchIcon size={18} className="text-gray-400 mr-2" />
+            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Konum ara..." className="w-full py-3 bg-transparent outline-none text-sm font-bold text-gray-900 dark:text-white" />
           </div>
-          
           <div className="flex gap-2">
-            <div className="flex-1 lg:w-48 flex items-center gap-3 border-2 border-gray-100 dark:border-gray-700 rounded-2xl px-5 py-3.5 bg-gray-50 dark:bg-gray-800 text-sm font-bold text-gray-500 hover:border-gray-200 transition-all cursor-pointer">
-              <Calendar size={18} className="text-gray-400" /> Tarih Seç
-            </div>
-            
-            <button 
-              onClick={() => setShowMoreFilters(!showMoreFilters)}
-              className={`flex items-center gap-2 border-2 px-6 py-3.5 rounded-2xl text-sm font-black transition-all transform active:scale-95 ${showMoreFilters || transmission || fuelType ? 'border-primary-600 text-primary-600 bg-primary-50' : 'border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}
-            >
-              <Filter size={18} /> 
-              <span className="hidden sm:inline">Filtreler</span>
-              {(transmission || fuelType) && <span className="flex h-2 w-2 rounded-full bg-primary-600"></span>}
+            <button onClick={() => setIsCalendarOpen(true)} className={`flex-1 lg:flex-none flex items-center justify-center gap-2 border px-4 py-3 rounded-2xl text-sm font-bold transition-all ${dates.start ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>
+              <Calendar size={18}/> {dates.start ? 'Seçildi' : 'Tarih'}
+            </button>
+            <button onClick={() => setShowFilters(true)} className="flex-1 lg:flex-none flex items-center justify-center gap-2 border px-4 py-3 rounded-2xl text-sm font-bold border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300">
+              <Filter size={18} /> Filtre
             </button>
           </div>
         </div>
-
-        {/* Improved Dropdown Filters */}
-        {showMoreFilters && (
-          <div className="container mx-auto mt-4 p-8 bg-white dark:bg-gray-800 border-2 border-primary-50 dark:border-gray-700 rounded-[2.5rem] shadow-2xl animate-in slide-in-from-top-4 duration-300 flex flex-wrap gap-10">
-            <div className="space-y-4">
-                <label className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">Şanzıman</label>
-                <div className="flex gap-3">
-                    {['Otomatik', 'Manuel'].map(v => (
-                        <button key={v} onClick={() => setTransmission(transmission === v ? "" : v)} className={`px-6 py-2.5 rounded-xl text-xs font-black border-2 transition-all ${transmission === v ? 'bg-primary-600 border-primary-600 text-white shadow-lg shadow-primary-600/30' : 'bg-gray-50 dark:bg-gray-700 border-transparent text-gray-600 dark:text-gray-400 hover:border-gray-200'}`}>{v}</button>
-                    ))}
-                </div>
-            </div>
-            <div className="space-y-4">
-                <label className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">Yakıt</label>
-                <div className="flex flex-wrap gap-3">
-                    {['Benzin', 'Dizel', 'Elektrik', 'Hibrit'].map(y => (
-                        <button key={y} onClick={() => setFuelType(fuelType === y ? "" : y)} className={`px-6 py-2.5 rounded-xl text-xs font-black border-2 transition-all ${fuelType === y ? 'bg-primary-600 border-primary-600 text-white shadow-lg shadow-primary-600/30' : 'bg-gray-50 dark:bg-gray-700 border-transparent text-gray-600 dark:text-gray-400 hover:border-gray-200'}`}>{y}</button>
-                    ))}
-                </div>
-            </div>
-            <div className="flex items-end pb-1">
-                <button onClick={() => { setTransmission(""); setFuelType(""); }} className="text-xs font-black text-red-500 hover:text-red-600 uppercase tracking-widest flex items-center gap-2 group">
-                   <X size={14} className="group-hover:rotate-90 transition-transform"/> Filtreleri Sıfırla
-                </button>
-            </div>
-          </div>
-        )}
       </div>
-
-      <div className="flex-1 flex overflow-hidden">
-        {/* Results List View */}
-        <div className={`w-full md:w-[480px] lg:w-[540px] h-full overflow-y-auto bg-white dark:bg-gray-950 border-r dark:border-gray-800 shrink-0 transition-all ${viewMode === 'map' ? 'hidden md:block' : 'block'}`}>
-          <div className="p-6 flex justify-between items-center sticky top-0 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md z-10 border-b dark:border-gray-800">
-            <h2 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.3em]">{filteredCars.length} ARAÇ BULUNDU</h2>
+      <div className="flex-1 flex overflow-hidden relative">
+        <div className={`w-full md:w-[400px] lg:w-[450px] h-full overflow-y-auto bg-white dark:bg-gray-950 border-r dark:border-gray-800 shrink-0 custom-scrollbar pb-32 transition-all duration-300 ${viewMode === 'map' ? 'hidden md:block' : 'block'}`}>
+          <div className="p-4 sticky top-0 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md z-10 border-b dark:border-gray-800">
+            <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{filteredCars.length} ARAÇ LİSTELENDİ</h2>
           </div>
-
           <div className="divide-y dark:divide-gray-800">
-            {filteredCars.map(car => (
-              <div key={car.id} onClick={() => navigate('/payment', { state: { car } })} className="group p-6 hover:bg-primary-50/30 dark:hover:bg-primary-900/10 cursor-pointer transition-all flex gap-5">
-                <div className="w-44 h-32 rounded-2xl overflow-hidden shadow-md border-2 border-white dark:border-gray-800 group-hover:shadow-xl transition-all flex-shrink-0">
-                  <img src={car.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
-                </div>
-                <div className="flex-1 flex flex-col min-w-0">
-                  <div className="flex justify-between items-start">
-                    <h3 className="font-black text-base text-gray-900 dark:text-white uppercase truncate pr-4">{car.brand} {car.model}</h3>
-                    <button onClick={(e) => toggleFavorite(e, car.id)} className="text-gray-300 hover:text-red-500 transition-colors shrink-0">
-                      <Heart size={22} className={favorites.includes(Number(car.id)) ? "fill-red-500 text-red-500" : "hover:scale-110 active:scale-90 transition-transform"} />
-                    </button>
+            {filteredCars.length === 0 ? (
+              <div className="p-12 text-center text-gray-500 font-bold uppercase text-[10px] tracking-widest">Müsait araç bulunamadı.</div>
+            ) : (
+              filteredCars.map(car => (
+                <div key={car.id} onClick={() => navigate('/payment', { state: { car, pickupDate: dates.start, returnDate: dates.end } })} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-900/50 cursor-pointer flex gap-4 transition-all">
+                  <div className="w-28 h-20 rounded-xl overflow-hidden shadow-sm flex-shrink-0">
+                    <img src={car.image} className="w-full h-full object-cover" alt={car.brand} />
                   </div>
-                  <div className="mt-2 flex items-center gap-2">
-                       <span className="text-[8px] font-black tracking-[0.2em] text-primary-600 border-2 border-primary-100 px-2 py-0.5 rounded-full bg-primary-50 uppercase">Connect</span>
-                  </div>
-                  <div className="mt-auto flex items-end justify-between">
-                    <div className="flex items-center gap-3 text-xs font-bold text-gray-500">
-                      <div className="flex items-center gap-1 text-yellow-500"><Star size={14} className="fill-current" /> {car.rating}</div>
-                      <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                      <span>{car.transmission}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start">
+                      <h3 className="font-black text-xs text-gray-900 dark:text-white uppercase truncate">{car.brand} {car.model}</h3>
+                      <button onClick={(e) => toggleFavorite(e, car.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                        <Heart size={16} className={favorites.includes(Number(car.id)) ? "fill-red-500 text-red-500" : ""} />
+                      </button>
                     </div>
-                    <div className="text-right">
-                       <p className="text-lg font-black text-gray-900 dark:text-white leading-none">₺{car.pricePerDay}</p>
-                       <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">/ GÜN</p>
+                    <div className="mt-1 text-[9px] font-black text-primary-600 uppercase tracking-wider">{car.transmission} • {car.fuelType}</div>
+                    <div className="mt-2 flex items-end justify-between">
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-gray-500"><Star size={10} className="text-yellow-400 fill-current" /> {car.rating}</div>
+                      <div className="text-right">
+                         <p className="text-sm font-black text-gray-900 dark:text-white leading-none">₺{car.pricePerDay}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-            {filteredCars.length === 0 && (
-              <div className="py-32 px-10 text-center animate-in fade-in duration-500">
-                <div className="w-20 h-20 bg-gray-50 dark:bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-6 text-gray-300">
-                  <SearchIcon size={32} />
-                </div>
-                <h3 className="font-black text-gray-900 dark:text-white text-lg mb-2 uppercase">Sonuç Bulunamadı</h3>
-                <p className="text-gray-500 text-sm font-medium leading-relaxed">Aradığınız kriterlere uygun araç bulunamadı.</p>
-                <button onClick={() => { setSearchQuery(""); setTransmission(""); setFuelType(""); }} className="mt-8 text-primary-600 font-black text-xs uppercase tracking-widest border-b-2 border-primary-100 hover:border-primary-600 transition-all pb-1">Tüm Araçlar</button>
-              </div>
+              ))
             )}
           </div>
         </div>
-
-        {/* Real Leaflet Map View */}
-        <div className={`flex-1 relative bg-gray-100 dark:bg-gray-900 ${viewMode === 'list' ? 'hidden md:block' : 'block'}`}>
-          <div ref={mapContainerRef} className="w-full h-full z-10" />
-          
-          <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-30 md:hidden">
-            <button 
-              onClick={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
-              className="bg-gray-900 dark:bg-primary-600 text-white px-10 py-4 rounded-full font-black shadow-2xl flex items-center gap-3 text-sm border-2 border-white/20 active:scale-95 transition-all"
-            >
-              {viewMode === 'list' ? <><MapIcon size={20}/> Haritaya Geç</> : <><List size={20}/> Listeyi Gör</>}
-            </button>
-          </div>
+        <div className={`flex-1 h-full relative bg-[#f5f5f5] ${viewMode === 'list' ? 'hidden md:block' : 'block'}`}>
+          <div ref={mapContainerRef} className="absolute inset-0 z-0" style={{ height: '100%', width: '100%' }} />
+        </div>
+        <div className="md:hidden fixed bottom-28 left-1/2 -translate-x-1/2 z-[5000]">
+          <button onClick={() => setViewMode(viewMode === 'list' ? 'map' : 'list')} className="bg-gray-900 dark:bg-primary-600 text-white px-8 py-3.5 rounded-full font-black shadow-2xl flex items-center gap-2 text-xs border-2 border-white/20">
+            {viewMode === 'list' ? <><MapIcon size={16}/> Harita</> : <><List size={16}/> Liste</>}
+          </button>
         </div>
       </div>
+      {showFilters && (
+        <div className="fixed inset-0 z-[10005]">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowFilters(false)} />
+            <div className="absolute bottom-0 left-0 w-full bg-white dark:bg-gray-900 rounded-t-[2.5rem] p-8 pb-12 animate-in slide-in-from-bottom duration-400">
+                <div className="w-12 h-1 bg-gray-200 dark:bg-gray-700 rounded-full mx-auto mb-6" />
+                <h3 className="text-xl font-black text-gray-900 dark:text-white mb-6 uppercase tracking-widest">Filtreler</h3>
+                <div className="space-y-6">
+                  <div>
+                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-3 block">Vites</label>
+                    <div className="flex gap-2">
+                      {['Otomatik', 'Manuel'].map(v => (
+                        <button key={v} onClick={() => setTransmission(transmission === v ? '' : v)} className={`flex-1 py-3.5 rounded-xl font-bold text-xs transition-all border-2 ${transmission === v ? 'border-primary-600 bg-primary-50 text-primary-700' : 'border-gray-50 dark:border-gray-800 text-gray-500'}`}>{v}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-10 flex gap-4">
+                  <button onClick={() => { setTransmission(''); setFuelType(''); }} className="flex-1 py-4 text-gray-400 font-black text-xs uppercase tracking-widest">Temizle</button>
+                  <button onClick={() => setShowFilters(false)} className="flex-[2] bg-primary-600 text-white py-4 rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-primary-600/20">Uygula</button>
+                </div>
+            </div>
+        </div>
+      )}
+      <CustomCalendar isOpen={isCalendarOpen} onClose={() => setIsCalendarOpen(false)} startDate={dates.start} endDate={dates.end} onChange={(s, e) => setDates({start: s, end: e})} />
     </div>
   );
 };

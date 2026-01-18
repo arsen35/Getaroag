@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import ImageCarousel from '../components/ImageCarousel';
@@ -41,7 +42,47 @@ const PaymentPage = () => {
   const handlePayment = (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessing(true);
+    
     setTimeout(() => {
+        const newTrip = {
+            id: Date.now(),
+            carId: car.id,
+            carName: `${car.brand} ${car.model}`,
+            carImage: car.image,
+            pickupDate,
+            returnDate,
+            totalPrice: grandTotal,
+            status: 'Yaklaşan',
+            location: car.location.city
+        };
+
+        // 1. Yolculuklarım'a ekle
+        const existingTrips = JSON.parse(localStorage.getItem('myTrips') || '[]');
+        localStorage.setItem('myTrips', JSON.stringify([newTrip, ...existingTrips]));
+
+        // 2. Aracın meşguliyet takvimini güncelle
+        const busyDates = JSON.parse(localStorage.getItem('busyDates') || '{}');
+        if (!busyDates[car.id]) busyDates[car.id] = [];
+        const prepareDate = new Date(returnDate);
+        prepareDate.setDate(prepareDate.getDate() + 1);
+        const prepareDateStr = prepareDate.toISOString().split('T')[0];
+
+        busyDates[car.id].push({ start: pickupDate, end: returnDate, readyAfter: prepareDateStr });
+        localStorage.setItem('busyDates', JSON.stringify(busyDates));
+
+        // 3. BİLDİRİM EKLE (Yeni)
+        const notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
+        notifications.unshift({
+          id: Date.now(),
+          title: 'Rezervasyon Onaylandı!',
+          message: `${car.brand} ${car.model} aracın ${new Date(pickupDate).toLocaleDateString('tr-TR')} tarihinde seni bekliyor. Keyifli sürüşler!`,
+          time: 'Az önce',
+          read: false,
+          type: 'success'
+        });
+        localStorage.setItem('notifications', JSON.stringify(notifications.slice(0, 15)));
+        window.dispatchEvent(new Event('newNotification'));
+
         setIsProcessing(false);
         setShowSuccessModal(true);
         setTimeout(() => navigate('/profile'), 3000);
@@ -65,7 +106,6 @@ const PaymentPage = () => {
                 </div>
                 <p className="text-[10px] text-gray-400 mt-4 uppercase tracking-widest font-bold">Profilinize Aktarılıyorsunuz</p>
             </div>
-            <style>{`@keyframes progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }`}</style>
         </div>
       )}
       

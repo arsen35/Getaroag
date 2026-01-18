@@ -1,5 +1,6 @@
 
-import React, { ReactNode, Component } from 'react';
+// Fix: Use Component and ReactNode directly to ensure type inheritance works correctly for ErrorBoundary
+import React, { Component, ReactNode } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from './pages/Home';
 import SearchPage from './pages/Search';
@@ -19,10 +20,16 @@ interface ErrorBoundaryState {
   hasError: boolean;
 }
 
-// Fixed: Inheriting from Component instead of React.Component to ensure types are correctly resolved in this environment.
+/**
+ * Standard React Error Boundary component.
+ * Fix: Explicitly extending Component with generic types to resolve inheritance of 'state' and 'props' properties.
+ */
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Fixed: Initializing state property directly within the class.
-  public state: ErrorBoundaryState = { hasError: false };
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    // Fix: Initializing state in constructor is more robust for TypeScript property resolution
+    this.state = { hasError: false };
+  }
 
   static getDerivedStateFromError(_: any): ErrorBoundaryState {
     return { hasError: true };
@@ -33,8 +40,11 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   render() {
-    // Fixed: State and props are now correctly recognized as inherited from the Component class.
-    if (this.state.hasError) {
+    // Fix: Destructuring this.props and this.state avoids visibility issues where TypeScript sometimes fails to see inherited properties on 'this'
+    const { hasError } = this.state;
+    const { children } = this.props;
+
+    if (hasError) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center bg-gray-50 dark:bg-gray-900">
           <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-2">Bir şeyler ters gitti.</h1>
@@ -49,7 +59,8 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
       );
     }
     
-    return this.props.children;
+    // Fix: Return destructured children instead of accessing this.props.children directly to avoid property existence error
+    return children;
   }
 }
 
