@@ -57,9 +57,21 @@ export interface UserProfile {
   surname: string;
   email: string;
   phone: string;
-  tcNo: string;
-  iban: string;
+  tcNo?: string;
+  iban?: string;
   isVerified: boolean;
+  isEmailVerified: boolean;
   driverRating: number;
   totalRents: number;
+  avatar?: string;
+  birthDate?: string;
+  birthPlace?: string;
+  licenseNumber?: string;
+  licenseIssueDate?: string;
+  licenseCountry?: string;
+  address?: string;
+  addressLine2?: string;
+  postalCode?: string;
+  bio?: string;
+  language?: string;
 }

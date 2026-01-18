@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Car, UserCircle, LogOut, Sun, Moon, LogIn, Search, Plus, Heart, Home, Bell, X, Info, CheckCircle, Clock, LayoutDashboard, MessageSquare } from 'lucide-react';
+import { Car, UserCircle, LogOut, Sun, Moon, LogIn, Search, Plus, Heart, Home, Bell, X, Info, CheckCircle, Clock, LayoutDashboard, MessageSquare, ChevronDown, CreditCard, ShieldCheck, Gift } from 'lucide-react';
 import { checkAuthStatus } from '../services/firebase';
 import { useTheme } from '../context/ThemeContext';
 
@@ -47,23 +47,6 @@ const MobileBottomNav = () => {
   );
 };
 
-const Toast = ({ title, message, onClose }: { title: string, message: string, onClose: () => void }) => (
-  <div className="fixed top-20 md:top-6 right-4 z-[10000] w-full max-w-sm animate-in slide-in-from-right fade-in duration-300">
-    <div className="bg-primary-600 text-white p-5 rounded-[2rem] shadow-2xl flex items-start gap-4 border border-white/20 backdrop-blur-md">
-      <div className="bg-white/20 p-2 rounded-full mt-1">
-        <Bell size={20} />
-      </div>
-      <div className="flex-1">
-        <h4 className="font-black text-xs uppercase tracking-widest">{title}</h4>
-        <p className="text-[11px] font-medium mt-1 leading-relaxed opacity-90">{message}</p>
-      </div>
-      <button onClick={onClose} className="text-white/60 hover:text-white transition-colors">
-        <X size={18} />
-      </button>
-    </div>
-  </div>
-);
-
 const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -71,48 +54,27 @@ const Navbar = () => {
   const { theme, toggleTheme } = useTheme();
   
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [user, setUser] = useState<any>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
-  const [activeToast, setActiveToast] = useState<{ title: string, message: string } | null>(null);
 
+  const profileMenuRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const profile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+    if (profile.name) setUser(profile);
+
     const handleClickOutside = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setShowProfileMenu(false);
+      }
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
         setShowNotifications(false);
       }
     };
-    if (showNotifications) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showNotifications]);
-
-  useEffect(() => {
-    const loadNotifications = () => {
-      const saved = JSON.parse(localStorage.getItem('notifications') || '[]');
-      setNotifications(saved);
-    };
-
-    loadNotifications();
-    
-    const handleNewNotify = () => {
-      const saved = JSON.parse(localStorage.getItem('notifications') || '[]');
-      setNotifications(saved);
-      if (saved.length > 0 && !saved[0].read) {
-        setActiveToast({ title: saved[0].title, message: saved[0].message });
-        setTimeout(() => setActiveToast(null), 5000);
-      }
-    };
-
-    window.addEventListener('storage', loadNotifications);
-    window.addEventListener('newNotification', handleNewNotify);
-    return () => {
-      window.removeEventListener('storage', loadNotifications);
-      window.removeEventListener('newNotification', handleNewNotify);
-    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleLogout = () => {
@@ -120,19 +82,10 @@ const Navbar = () => {
     navigate('/');
   };
 
-  const markAllRead = () => {
-    const updated = notifications.map(n => ({ ...n, read: true }));
-    setNotifications(updated);
-    localStorage.setItem('notifications', JSON.stringify(updated));
-  };
-
   const isActive = (path: string) => location.pathname === path;
-  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <>
-      {activeToast && <Toast title={activeToast.title} message={activeToast.message} onClose={() => setActiveToast(null)} />}
-
       <nav className="hidden md:block bg-white/95 dark:bg-gray-900/95 backdrop-blur-md sticky top-0 z-50 border-b border-gray-100 dark:border-gray-800 transition-colors duration-300">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
@@ -146,73 +99,83 @@ const Navbar = () => {
             </Link>
 
             <div className="flex items-center space-x-4">
-              <button 
-                onClick={toggleTheme} 
-                className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              >
+              <button onClick={toggleTheme} className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 transition-colors">
                 {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
               </button>
 
-              {isLoggedIn && (
-                <>
-                  <Link to="/messages" className={`p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative ${isActive('/messages') ? 'text-primary-600' : ''}`}>
+              {isLoggedIn ? (
+                <div className="flex items-center gap-2">
+                  <Link to="/messages" className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 rounded-full transition-colors relative">
                     <MessageSquare size={20} />
                   </Link>
                   
                   <div className="relative" ref={notificationRef}>
-                    <button 
-                      onClick={() => setShowNotifications(!showNotifications)}
-                      className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative"
-                    >
+                    <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 rounded-full relative">
                       <Bell size={20} />
-                      {unreadCount > 0 && (
-                        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-gray-900 animate-pulse"></span>
-                      )}
                     </button>
-                    {showNotifications && (
-                      <div className="absolute right-0 mt-4 w-80 bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border dark:border-gray-700 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        <div className="p-4 bg-gray-50 dark:bg-gray-700/50 flex justify-between items-center border-b dark:border-gray-700">
-                          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Bildirimler</span>
-                          <button onClick={markAllRead} className="text-[10px] font-black text-primary-600 uppercase tracking-widest hover:text-primary-700">Tümünü Oku</button>
+                  </div>
+
+                  <Link to="/dashboard" className={`text-gray-600 dark:text-gray-300 hover:text-primary-600 font-black text-[10px] uppercase tracking-widest px-3 py-2 flex items-center gap-2 border-2 border-transparent hover:border-primary-100 rounded-2xl transition-all ${isActive('/dashboard') ? 'text-primary-600 bg-primary-50 dark:bg-primary-900/20' : ''}`}>
+                    <LayoutDashboard size={18} /> Panel
+                  </Link>
+
+                  <div className="relative" ref={profileMenuRef}>
+                    <button 
+                      onClick={() => setShowProfileMenu(!showProfileMenu)}
+                      className="flex items-center gap-2 bg-primary-50 dark:bg-primary-900/20 px-4 py-2 rounded-full border-2 border-primary-100 dark:border-primary-800 hover:border-primary-300 transition-all"
+                    >
+                      {user?.avatar ? (
+                        <img src={user.avatar} className="w-6 h-6 rounded-full object-cover" />
+                      ) : (
+                        <UserCircle size={20} className="text-primary-600" />
+                      )}
+                      <span className="text-sm font-bold text-primary-700 dark:text-primary-300">{user?.name || 'Hesabım'}</span>
+                      <ChevronDown size={14} className={`text-primary-600 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {showProfileMenu && (
+                      <div className="absolute right-0 mt-3 w-72 bg-white dark:bg-gray-800 rounded-[2rem] shadow-2xl border dark:border-gray-700 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-6 bg-gray-50 dark:bg-gray-700/50 flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-full bg-primary-600 flex items-center justify-center text-white font-black text-xl">
+                            {user?.avatar ? <img src={user.avatar} className="w-full h-full rounded-full object-cover" /> : user?.name?.[0]}
+                          </div>
+                          <div>
+                            <h4 className="font-black text-sm uppercase text-gray-900 dark:text-white leading-none">{user?.name} {user?.surname}</h4>
+                            <button onClick={() => { navigate('/profile'); setShowProfileMenu(false); }} className="text-[10px] font-bold text-primary-600 uppercase hover:underline mt-1">Hesabını Düzenle</button>
+                          </div>
                         </div>
-                        <div className="max-h-[360px] overflow-y-auto custom-scrollbar">
-                          {notifications.length === 0 ? (
-                            <div className="p-12 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">Henüz bildirim yok.</div>
-                          ) : (
-                            notifications.map(n => (
-                              <div key={n.id} className={`p-5 border-b last:border-none dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors relative ${!n.read ? 'bg-primary-50/20 dark:bg-primary-900/5' : ''}`}>
-                                 {!n.read && <div className="absolute top-6 left-2 w-1.5 h-1.5 bg-primary-600 rounded-full"></div>}
-                                 <div className="flex gap-3">
-                                    <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center ${n.type === 'success' ? 'bg-green-100 text-green-600' : 'bg-primary-100 text-primary-600'}`}>
-                                       {n.type === 'success' ? <CheckCircle size={14}/> : <Info size={14}/>}
-                                    </div>
-                                    <div className="flex-1">
-                                       <div className="font-black text-xs text-gray-900 dark:text-white mb-1 uppercase tracking-tight">{n.title}</div>
-                                       <div className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed font-medium">{n.message}</div>
-                                       <div className="text-[9px] text-gray-400 mt-2 font-black uppercase flex items-center gap-1"><Clock size={10}/> {n.time}</div>
-                                    </div>
-                                 </div>
+                        <div className="p-2">
+                           <button onClick={() => { navigate('/profile?tab=verify'); setShowProfileMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                              <ShieldCheck size={18} className="text-gray-400" />
+                              <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Profilini Doğrula</span>
+                           </button>
+                           <button onClick={() => { navigate('/profile?tab=rentals'); setShowProfileMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                              <Clock size={18} className="text-gray-400" />
+                              <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Kiralamalarım</span>
+                           </button>
+                           <button onClick={() => { navigate('/messages'); setShowProfileMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                              <MessageSquare size={18} className="text-gray-400" />
+                              <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Mesajlar</span>
+                           </button>
+                           <button onClick={() => { navigate('/profile?tab=payments'); setShowProfileMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b dark:border-gray-700 pb-4 mb-2">
+                              <CreditCard size={18} className="text-gray-400" />
+                              <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Ödemeler</span>
+                           </button>
+                           <div className="bg-gray-50 dark:bg-gray-900/50 m-2 p-4 rounded-2xl flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <Gift size={18} className="text-primary-600" />
+                                <span className="text-xs font-bold text-gray-700 dark:text-gray-200">₺500 kredi kazan</span>
                               </div>
-                            ))
-                          )}
+                              <Gift size={14} className="text-gray-400" />
+                           </div>
+                           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-red-50 text-red-600 transition-colors mt-2">
+                              <LogOut size={18} />
+                              <span className="text-sm font-bold">Çıkış Yap</span>
+                           </button>
                         </div>
                       </div>
                     )}
                   </div>
-                </>
-              )}
-
-              <Link to="/dashboard" className={`text-gray-600 dark:text-gray-300 hover:text-primary-600 font-black text-[10px] uppercase tracking-widest px-3 py-2 flex items-center gap-2 border-2 border-transparent hover:border-primary-100 rounded-2xl transition-all ${isActive('/dashboard') ? 'text-primary-600 bg-primary-50 dark:bg-primary-900/20' : ''}`}>
-                 <LayoutDashboard size={18} /> Panel
-              </Link>
-              
-              {isLoggedIn ? (
-                <div className="flex items-center gap-4">
-                  <Link to="/profile" className={`flex items-center space-x-2 text-gray-700 dark:text-gray-200 hover:text-primary-600 font-bold ${isActive('/profile') ? 'text-primary-600' : ''}`}>
-                    <UserCircle size={20} />
-                    <span className="text-sm">Hesabım</span>
-                  </Link>
-                  <button onClick={handleLogout} className="text-gray-400 hover:text-red-500"><LogOut size={20} /></button>
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
@@ -239,30 +202,6 @@ const Navbar = () => {
             </span>
           </Link>
           <div className="flex items-center gap-2">
-            {isLoggedIn && (
-               <div className="relative" ref={notificationRef}>
-                  <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 text-gray-600 dark:text-gray-300 relative">
-                     <Bell size={20} />
-                     {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full"></span>}
-                  </button>
-                  {showNotifications && (
-                    <div className="fixed top-14 left-4 right-4 bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border dark:border-gray-700 overflow-hidden z-[10001] animate-in fade-in slide-in-from-top-2">
-                       <div className="p-4 bg-gray-50 dark:bg-gray-700/50 flex justify-between items-center">
-                          <span className="text-[10px] font-black uppercase text-gray-500">Bildirimler</span>
-                          <button onClick={() => setShowNotifications(false)} className="text-gray-400"><X size={18}/></button>
-                       </div>
-                       <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
-                          {notifications.map(n => (
-                            <div key={n.id} className="p-4 border-b dark:border-gray-700">
-                               <div className="font-black text-xs uppercase mb-1">{n.title}</div>
-                               <div className="text-[11px] text-gray-500 dark:text-gray-400">{n.message}</div>
-                            </div>
-                          ))}
-                       </div>
-                    </div>
-                  )}
-               </div>
-            )}
             <button onClick={toggleTheme} className="p-2 text-gray-600 dark:text-gray-300">{theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}</button>
           </div>
       </div>

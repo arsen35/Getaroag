@@ -1,5 +1,4 @@
 
-
 import React, { ReactNode } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from './pages/Home';
@@ -24,7 +23,14 @@ interface ErrorBoundaryState {
 
 // Using React.Component explicitly to avoid Property 'props' does not exist error on class components in some environments
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { hasError: false };
+  // Fix: Explicitly define props to avoid TS error in some environments
+  props: ErrorBoundaryProps;
+
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+    this.props = props;
+  }
 
   static getDerivedStateFromError(_: any): ErrorBoundaryState {
     return { hasError: true };
