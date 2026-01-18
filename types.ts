@@ -1,3 +1,4 @@
+
 export interface Car {
   id: number | string;
   name: string;
@@ -25,19 +26,40 @@ export interface Car {
   };
 }
 
-export interface SearchFilters {
-  location: string;
-  pickupDate: string;
-  returnDate: string;
-  priceRange?: string;
-  carType?: string;
-  transmission?: string;
-  fuelType?: string;
-  ageGroup?: string;
+export interface Message {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  text: string;
+  timestamp: number;
+  carId?: string | number;
 }
 
-export interface User {
-  uid: string;
+export interface Trip {
+  id: number;
+  carId: number | string;
+  carName: string;
+  carImage: string;
+  pickupDate: string;
+  returnDate: string;
+  totalPrice: number;
+  status: 'Yaklaşan' | 'Devam Ediyor' | 'Tamamlandı' | 'İptal Edildi';
+  location: string;
+  reviewed: boolean;
+  renterReviewed?: boolean;
+  checkInPhotos?: string[];
+  checkOutPhotos?: string[];
+  ownerId?: string;
+}
+
+export interface UserProfile {
+  name: string;
+  surname: string;
   email: string;
-  displayName?: string;
+  phone: string;
+  tcNo: string;
+  iban: string;
+  isVerified: boolean;
+  driverRating: number;
+  totalRents: number;
 }

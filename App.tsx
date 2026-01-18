@@ -1,6 +1,6 @@
 
-// Fix: Explicitly use Component and ReactNode to ensure type inheritance works correctly for ErrorBoundary
-import React, { Component, ReactNode } from 'react';
+
+import React, { ReactNode } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from './pages/Home';
 import SearchPage from './pages/Search';
@@ -10,6 +10,8 @@ import SignupPage from './pages/Signup';
 import ProfilePage from './pages/Profile';
 import PaymentPage from './pages/Payment';
 import FavoritesPage from './pages/Favorites';
+import DashboardPage from './pages/Dashboard';
+import MessagesPage from './pages/Messages';
 import { ThemeProvider } from './context/ThemeContext';
 
 interface ErrorBoundaryProps {
@@ -20,12 +22,8 @@ interface ErrorBoundaryState {
   hasError: boolean;
 }
 
-/**
- * Standard React Error Boundary component.
- * Updated to extend Component directly with explicit property types to resolve TypeScript errors.
- */
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Fix: Explicitly declare state as a property to ensure TypeScript recognizes it on 'this'
+// Using React.Component explicitly to avoid Property 'props' does not exist error on class components in some environments
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { hasError: false };
 
   static getDerivedStateFromError(_: any): ErrorBoundaryState {
@@ -37,7 +35,6 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   render() {
-    // Accessing state and props via 'this' works correctly when extending Component with generics
     const { hasError } = this.state;
     const { children } = this.props;
 
@@ -74,6 +71,8 @@ const App = () => {
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/payment" element={<PaymentPage />} />
               <Route path="/favorites" element={<FavoritesPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/messages" element={<MessagesPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </HashRouter>
