@@ -1,6 +1,6 @@
 
-// Fix: Use Component and ReactNode directly to ensure type inheritance works correctly for ErrorBoundary
-import React, { Component, ReactNode } from 'react';
+// Fix: Explicitly use React.Component and ReactNode to ensure type inheritance works correctly for ErrorBoundary
+import React, { ReactNode } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from './pages/Home';
 import SearchPage from './pages/Search';
@@ -22,14 +22,11 @@ interface ErrorBoundaryState {
 
 /**
  * Standard React Error Boundary component.
- * Fix: Explicitly extending Component with generic types to resolve inheritance of 'state' and 'props' properties.
+ * Updated to extend React.Component directly with explicit property types to resolve TypeScript errors.
  */
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    // Fix: Initializing state in constructor is more robust for TypeScript property resolution
-    this.state = { hasError: false };
-  }
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  // Fix: Explicitly declare state as a property to ensure TypeScript recognizes it on 'this'
+  state: ErrorBoundaryState = { hasError: false };
 
   static getDerivedStateFromError(_: any): ErrorBoundaryState {
     return { hasError: true };
@@ -40,7 +37,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   render() {
-    // Fix: Destructuring this.props and this.state avoids visibility issues where TypeScript sometimes fails to see inherited properties on 'this'
+    // Fix: Accessing state and props via 'this' works correctly when extending React.Component with generics
     const { hasError } = this.state;
     const { children } = this.props;
 
@@ -59,7 +56,6 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
       );
     }
     
-    // Fix: Return destructured children instead of accessing this.props.children directly to avoid property existence error
     return children;
   }
 }

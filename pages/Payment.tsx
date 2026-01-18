@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import ImageCarousel from '../components/ImageCarousel';
-import { Shield, CheckCircle, CreditCard, Calendar as CalendarIcon, Loader2, ArrowLeft } from 'lucide-react';
+import { Shield, CheckCircle, CreditCard, Calendar as CalendarIcon, Loader2, ArrowLeft, Clock } from 'lucide-react';
 import { Car } from '../types';
 import CustomCalendar from '../components/CustomCalendar';
 
@@ -53,29 +53,36 @@ const PaymentPage = () => {
             returnDate,
             totalPrice: grandTotal,
             status: 'Yaklaşan',
-            location: car.location.city
+            location: car.location.city,
+            reviewed: false
         };
 
         // 1. Yolculuklarım'a ekle
         const existingTrips = JSON.parse(localStorage.getItem('myTrips') || '[]');
         localStorage.setItem('myTrips', JSON.stringify([newTrip, ...existingTrips]));
 
-        // 2. Aracın meşguliyet takvimini güncelle
+        // 2. Aracın meşguliyet takvimini güncelle + HAZIRLIK SÜRESİ (Buffer)
         const busyDates = JSON.parse(localStorage.getItem('busyDates') || '{}');
         if (!busyDates[car.id]) busyDates[car.id] = [];
+        
+        // Araç iade edildikten 1 gün sonra tekrar kiralanabilir (Hazırlık süresi kuralı)
         const prepareDate = new Date(returnDate);
         prepareDate.setDate(prepareDate.getDate() + 1);
         const prepareDateStr = prepareDate.toISOString().split('T')[0];
 
-        busyDates[car.id].push({ start: pickupDate, end: returnDate, readyAfter: prepareDateStr });
+        busyDates[car.id].push({ 
+            start: pickupDate, 
+            end: returnDate, 
+            readyAfter: prepareDateStr // Bu tarihten önce kimse kiralayamaz
+        });
         localStorage.setItem('busyDates', JSON.stringify(busyDates));
 
-        // 3. BİLDİRİM EKLE (Yeni)
+        // 3. BİLDİRİM EKLE
         const notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
         notifications.unshift({
           id: Date.now(),
           title: 'Rezervasyon Onaylandı!',
-          message: `${car.brand} ${car.model} aracın ${new Date(pickupDate).toLocaleDateString('tr-TR')} tarihinde seni bekliyor. Keyifli sürüşler!`,
+          message: `${car.brand} ${car.model} aracın ${new Date(pickupDate).toLocaleDateString('tr-TR')} tarihinde seni bekliyor. Teslim sonrası 24 saat hazırlık süresi otomatik eklenmiştir.`,
           time: 'Az önce',
           read: false,
           type: 'success'
@@ -86,7 +93,7 @@ const PaymentPage = () => {
         setIsProcessing(false);
         setShowSuccessModal(true);
         setTimeout(() => navigate('/profile'), 3000);
-    }, 2500);
+    }, 2000);
   };
 
   return (
@@ -115,7 +122,7 @@ const PaymentPage = () => {
         <button onClick={() => navigate(-1)} className="mb-6 flex items-center gap-2 text-gray-500 hover:text-primary-600 transition-colors font-medium">
             <ArrowLeft size={20} /> Geri Dön
         </button>
-        <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white mb-10 tracking-tight">Rezervasyon Detayları</h1>
+        <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white mb-10 tracking-tight">Rezervasyon Özeti</h1>
         
         <div className="flex flex-col lg:flex-row gap-10">
           <div className="lg:w-2/5">
@@ -126,7 +133,6 @@ const PaymentPage = () => {
                    <div className="flex gap-2 text-gray-500 dark:text-gray-400 text-sm mb-6">
                       <span className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">{car.year}</span>
                       <span className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">{car.transmission}</span>
-                      <span className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">{car.fuelType}</span>
                    </div>
                    
                    <div className="space-y-4 border-t dark:border-gray-700 pt-6">
@@ -140,9 +146,15 @@ const PaymentPage = () => {
                                    {' - '}
                                    {new Date(returnDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}
                                 </div>
-                                <span className="text-xs text-primary-600 font-bold">Değiştirmek için dokun</span>
                              </div>
                           </div>
+                      </div>
+
+                      <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-2xl flex items-start gap-3 border border-blue-100 dark:border-blue-900/20">
+                         <Clock size={18} className="text-blue-600 mt-0.5 shrink-0" />
+                         <div className="text-[10px] text-blue-800 dark:text-blue-300 font-bold uppercase tracking-wider leading-relaxed">
+                            ARAÇ SAHİBİ İÇİN 24 SAAT HAZIRLIK SÜRESİ OTOMATİK OLARAK BLOKE EDİLECEKTİR.
+                         </div>
                       </div>
                    </div>
                 </div>
@@ -151,18 +163,18 @@ const PaymentPage = () => {
 
           <div className="lg:w-3/5 space-y-8">
              <div className="bg-white dark:bg-gray-800 p-8 rounded-[2rem] shadow-sm border dark:border-gray-700 border-gray-100">
-                <h3 className="font-bold text-xl mb-6 text-gray-900 dark:text-white">Fiyat Dökümü</h3>
+                <h3 className="font-bold text-xl mb-6 text-gray-900 dark:text-white">Fiyat Detayları</h3>
                 <div className="space-y-4">
-                   <div className="flex justify-between text-gray-600 dark:text-gray-300">
+                   <div className="flex justify-between text-gray-600 dark:text-gray-300 font-medium">
                       <span>{days} Günlük Kiralama</span>
                       <span className="font-bold text-gray-900 dark:text-white">₺{total}</span>
                    </div>
-                   <div className="flex justify-between text-gray-600 dark:text-gray-300">
-                      <span>Güvence Paketi (Zorunlu)</span>
+                   <div className="flex justify-between text-gray-600 dark:text-gray-300 font-medium">
+                      <span>Güvence ve Destek Paketi</span>
                       <span className="font-bold text-gray-900 dark:text-white">₺{insurance}</span>
                    </div>
                    <div className="flex justify-between items-center pt-6 border-t dark:border-gray-700 font-black text-3xl text-primary-600">
-                      <span className="text-gray-900 dark:text-white text-xl">Toplam</span>
+                      <span className="text-gray-900 dark:text-white text-xl">Toplam Ödeme</span>
                       <span>₺{grandTotal}</span>
                    </div>
                 </div>
@@ -170,26 +182,26 @@ const PaymentPage = () => {
 
              <div className="bg-white dark:bg-gray-800 p-8 rounded-[2rem] shadow-sm border dark:border-gray-700 border-gray-100">
                 <h3 className="font-bold text-xl mb-8 flex items-center gap-3 text-gray-900 dark:text-white">
-                   <CreditCard className="text-primary-600" /> Kredi Kartı Bilgileri
+                   <CreditCard className="text-primary-600" /> Kredi Kartı
                 </h3>
                 
                 <form onSubmit={handlePayment} className="space-y-6">
                    <div className="space-y-2">
                       <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Kart Üzerindeki İsim</label>
-                      <input required type="text" className="w-full p-4 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white font-medium" placeholder="Ad Soyad" />
+                      <input required type="text" className="w-full p-4 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white font-bold" placeholder="AD SOYAD" />
                    </div>
                    <div className="space-y-2">
                       <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Kart Numarası</label>
-                      <input required type="text" className="w-full p-4 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white font-mono tracking-widest" placeholder="0000 0000 0000 0000" />
+                      <input required type="text" className="w-full p-4 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white font-mono tracking-widest font-bold" placeholder="0000 0000 0000 0000" />
                    </div>
                    <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-2">
                          <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Son Kullanma</label>
-                         <input required type="text" className="w-full p-4 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white" placeholder="AA/YY" />
+                         <input required type="text" className="w-full p-4 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white font-bold" placeholder="AA/YY" />
                       </div>
                       <div className="space-y-2">
                          <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">CVV</label>
-                         <input required type="text" className="w-full p-4 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white" placeholder="123" />
+                         <input required type="text" className="w-full p-4 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white font-bold" placeholder="123" />
                       </div>
                    </div>
 
@@ -203,7 +215,7 @@ const PaymentPage = () => {
                      disabled={isProcessing}
                      className="w-full bg-primary-600 disabled:bg-primary-400 text-white py-5 rounded-2xl font-black text-xl hover:bg-primary-700 transition-all shadow-xl shadow-primary-600/30 flex items-center justify-center gap-3 active:scale-[0.98]"
                    >
-                     {isProcessing ? <><Loader2 className="animate-spin" /> İşleniyor...</> : `Ödemeyi Tamamla (₺${grandTotal})`}
+                     {isProcessing ? <><Loader2 className="animate-spin" /> İşleniyor...</> : `Ödemeyi Onayla (₺${grandTotal})`}
                    </button>
                 </form>
              </div>

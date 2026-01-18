@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { Map as MapIcon, List, Heart, Search as SearchIcon, Calendar, Star, Filter, ChevronRight, Bell } from 'lucide-react';
+import { Map as MapIcon, List, Heart, Search as SearchIcon, Calendar, Star, Filter, ChevronRight, Bell, Clock } from 'lucide-react';
 import { Car } from '../types';
 import { MOCK_CARS } from '../data/mockData';
 import CustomCalendar from '../components/CustomCalendar';
@@ -51,30 +51,10 @@ const SearchPage = () => {
       } catch (e) { console.error(e); }
       const combined = [...MOCK_CARS, ...localCars].filter(car => car && car.id);
       setAllCars(combined);
-      
-      // SİMÜLASYON: Eğer favorilerde bir araç varsa ve "Şu an müsait" ise bildirim gönder (Demo amaçlı)
-      if (savedFavs && JSON.parse(savedFavs).length > 0) {
-        const favIds = JSON.parse(savedFavs);
-        const randomFav = combined.find(c => favIds.includes(Number(c.id)));
-        if (randomFav && Math.random() > 0.7) { // %30 ihtimalle bildirim tetikle
-          const notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
-          const alreadyNotified = notifications.some((n:any) => n.title === 'Favori Aracın Müsait!');
-          if (!alreadyNotified) {
-             notifications.unshift({
-               id: Date.now(),
-               title: 'Favori Aracın Müsait!',
-               message: `Takip ettiğin ${randomFav.brand} ${randomFav.model} şu an kiralanmaya hazır. Fırsatı kaçırma!`,
-               time: 'Şimdi',
-               read: false,
-               type: 'info'
-             });
-             localStorage.setItem('notifications', JSON.stringify(notifications.slice(0, 15)));
-             window.dispatchEvent(new Event('newNotification'));
-          }
-        }
-      }
     };
     loadCars();
+    window.addEventListener('storage', loadCars);
+    return () => window.removeEventListener('storage', loadCars);
   }, []);
 
   const filteredCars = useMemo(() => {
@@ -96,14 +76,24 @@ const SearchPage = () => {
       const matchesTransmission = !transmission || car.transmission === transmission;
       const matchesFuelType = !fuelType || car.fuelType === fuelType;
 
+      // AVAIALABILITY LOGIC WITH BUFFER TIME
       let isAvailable = true;
       if (dates.start && dates.end && busyData[car.id]) {
-        const reqStart = new Date(dates.start).getTime();
-        const reqEnd = new Date(dates.end).getTime();
+        // Normalize search dates to midnight for accurate day comparison
+        const reqStart = new Date(dates.start);
+        reqStart.setHours(0,0,0,0);
+        const reqEnd = new Date(dates.end);
+        reqEnd.setHours(0,0,0,0);
 
         isAvailable = !busyData[car.id].some((range: any) => {
-            const rangeStart = new Date(range.start).getTime();
-            const rangeEndWithBuffer = new Date(range.readyAfter).getTime();
+            const rangeStart = new Date(range.start);
+            rangeStart.setHours(0,0,0,0);
+            
+            // The car is ready only AFTER the preparation buffer (readyAfter)
+            const rangeEndWithBuffer = new Date(range.readyAfter);
+            rangeEndWithBuffer.setHours(0,0,0,0);
+
+            // If the requested period overlaps with the busy period (including buffer), it's unavailable
             return (reqStart < rangeEndWithBuffer && reqEnd >= rangeStart);
         });
       }
@@ -149,7 +139,7 @@ const SearchPage = () => {
               <span style="font-size: 11px; color: #f59e0b; font-weight: 900;">★ ${car.rating}</span>
               <span style="font-weight: 900; color: #A322DA; font-size: 16px;">₺${car.pricePerDay}</span>
             </div>
-            <div style="margin-top: 10px; background: #8b5cf6; color: white; text-align: center; padding: 8px; border-radius: 12px; font-weight: 800; font-size: 12px; text-transform: uppercase;">Detayları Gör</div>
+            <div style="margin-top: 10px; background: #8b5cf6; color: white; text-align: center; padding: 8px; border-radius: 12px; font-weight: 800; font-size: 12px; text-transform: uppercase;">Seç ve Kirala</div>
           </div>
         </div>
       `;
@@ -187,11 +177,11 @@ const SearchPage = () => {
         <div className="container mx-auto flex flex-col lg:flex-row gap-2">
           <div className="flex-1 flex items-center border border-gray-200 dark:border-gray-700 rounded-2xl px-4 bg-gray-50 dark:bg-gray-800 transition-all">
             <SearchIcon size={18} className="text-gray-400 mr-2" />
-            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Konum ara..." className="w-full py-3 bg-transparent outline-none text-sm font-bold text-gray-900 dark:text-white" />
+            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Konum, marka veya model ara..." className="w-full py-3 bg-transparent outline-none text-sm font-bold text-gray-900 dark:text-white" />
           </div>
           <div className="flex gap-2">
             <button onClick={() => setIsCalendarOpen(true)} className={`flex-1 lg:flex-none flex items-center justify-center gap-2 border px-4 py-3 rounded-2xl text-sm font-bold transition-all ${dates.start ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>
-              <Calendar size={18}/> {dates.start ? 'Seçildi' : 'Tarih'}
+              <Calendar size={18}/> {dates.start ? `${new Date(dates.start).toLocaleDateString('tr-TR', {day:'numeric', month:'short'})}` : 'Tarih'}
             </button>
             <button onClick={() => setShowFilters(true)} className="flex-1 lg:flex-none flex items-center justify-center gap-2 border px-4 py-3 rounded-2xl text-sm font-bold border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300">
               <Filter size={18} /> Filtre
@@ -201,12 +191,23 @@ const SearchPage = () => {
       </div>
       <div className="flex-1 flex overflow-hidden relative">
         <div className={`w-full md:w-[400px] lg:w-[450px] h-full overflow-y-auto bg-white dark:bg-gray-950 border-r dark:border-gray-800 shrink-0 custom-scrollbar pb-32 transition-all duration-300 ${viewMode === 'map' ? 'hidden md:block' : 'block'}`}>
-          <div className="p-4 sticky top-0 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md z-10 border-b dark:border-gray-800">
+          <div className="p-4 sticky top-0 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md z-10 border-b dark:border-gray-800 flex justify-between items-center">
             <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{filteredCars.length} ARAÇ LİSTELENDİ</h2>
+            {dates.start && (
+               <div className="flex items-center gap-1 text-[9px] font-black text-green-600 uppercase">
+                  <Clock size={10}/> Hazırlık Süresi Dahil
+               </div>
+            )}
           </div>
           <div className="divide-y dark:divide-gray-800">
             {filteredCars.length === 0 ? (
-              <div className="p-12 text-center text-gray-500 font-bold uppercase text-[10px] tracking-widest">Müsait araç bulunamadı.</div>
+              <div className="p-20 text-center">
+                 <div className="w-16 h-16 bg-gray-50 dark:bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
+                    <SearchIcon size={32}/>
+                 </div>
+                 <h3 className="font-black text-xs text-gray-400 uppercase tracking-widest">Sonuç Bulunamadı</h3>
+                 <p className="text-[10px] text-gray-400 mt-2 font-medium">Tarih veya filtreleri değiştirerek tekrar deneyin.</p>
+              </div>
             ) : (
               filteredCars.map(car => (
                 <div key={car.id} onClick={() => navigate('/payment', { state: { car, pickupDate: dates.start, returnDate: dates.end } })} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-900/50 cursor-pointer flex gap-4 transition-all">
