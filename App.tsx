@@ -1,6 +1,6 @@
 
-// Fix: Explicitly use React.Component and ReactNode to ensure type inheritance works correctly for ErrorBoundary
-import React, { ReactNode } from 'react';
+// Fix: Explicitly use Component and ReactNode to ensure type inheritance works correctly for ErrorBoundary
+import React, { Component, ReactNode } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from './pages/Home';
 import SearchPage from './pages/Search';
@@ -22,9 +22,9 @@ interface ErrorBoundaryState {
 
 /**
  * Standard React Error Boundary component.
- * Updated to extend React.Component directly with explicit property types to resolve TypeScript errors.
+ * Updated to extend Component directly with explicit property types to resolve TypeScript errors.
  */
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   // Fix: Explicitly declare state as a property to ensure TypeScript recognizes it on 'this'
   state: ErrorBoundaryState = { hasError: false };
 
@@ -37,7 +37,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   render() {
-    // Fix: Accessing state and props via 'this' works correctly when extending React.Component with generics
+    // Accessing state and props via 'this' works correctly when extending Component with generics
     const { hasError } = this.state;
     const { children } = this.props;
 

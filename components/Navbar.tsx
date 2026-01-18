@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Car, UserCircle, LogOut, Sun, Moon, UserPlus, LogIn, Search, Plus, Heart, Home, Bell, X, Info, CheckCircle, Clock } from 'lucide-react';
+import { Car, UserCircle, LogOut, Sun, Moon, LogIn, Search, Plus, Heart, Home, Bell, X, Info, CheckCircle, Clock } from 'lucide-react';
 import { checkAuthStatus } from '../services/firebase';
 import { useTheme } from '../context/ThemeContext';
 
@@ -47,7 +47,6 @@ const MobileBottomNav = () => {
   );
 };
 
-// Global Toast Alert Component
 const Toast = ({ title, message, onClose }: { title: string, message: string, onClose: () => void }) => (
   <div className="fixed top-20 md:top-6 right-4 z-[10000] w-full max-w-sm animate-in slide-in-from-right fade-in duration-300">
     <div className="bg-primary-600 text-white p-5 rounded-[2rem] shadow-2xl flex items-start gap-4 border border-white/20 backdrop-blur-md">
@@ -70,16 +69,34 @@ const Navbar = () => {
   const location = useLocation();
   const isLoggedIn = checkAuthStatus();
   const { theme, toggleTheme } = useTheme();
+  
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [activeToast, setActiveToast] = useState<{ title: string, message: string } | null>(null);
+
+  // Click-away logic for notifications
+  const notificationRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+    if (showNotifications) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showNotifications]);
 
   useEffect(() => {
     const loadNotifications = () => {
       const saved = JSON.parse(localStorage.getItem('notifications') || '[]');
       if (saved.length === 0 && isLoggedIn) {
         const initial = [
-          { id: 1, title: 'Hoş Geldiniz!', message: 'Getaroag dünyasına katıldığınız için teşekkürler. Şehrindeki binlerce aracı keşfetmeye başla.', time: 'Az önce', read: false, type: 'info' }
+          { id: 1, title: 'Hoş Geldiniz!', message: 'Getaroag dünyasına katıldığınız için teşekkürler.', time: 'Az önce', read: false, type: 'info' }
         ];
         setNotifications(initial);
         localStorage.setItem('notifications', JSON.stringify(initial));
@@ -90,7 +107,6 @@ const Navbar = () => {
 
     loadNotifications();
     
-    // Custom event to handle new notifications from other pages
     const handleNewNotify = () => {
       const saved = JSON.parse(localStorage.getItem('notifications') || '[]');
       setNotifications(saved);
@@ -147,7 +163,7 @@ const Navbar = () => {
               </button>
 
               {isLoggedIn && (
-                <div className="relative">
+                <div className="relative" ref={notificationRef}>
                   <button 
                     onClick={() => setShowNotifications(!showNotifications)}
                     className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative"
@@ -230,10 +246,28 @@ const Navbar = () => {
           </Link>
           <div className="flex items-center gap-2">
             {isLoggedIn && (
-               <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 text-gray-600 dark:text-gray-300 relative">
-                  <Bell size={20} />
-                  {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full"></span>}
-               </button>
+               <div className="relative" ref={notificationRef}>
+                  <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 text-gray-600 dark:text-gray-300 relative">
+                     <Bell size={20} />
+                     {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full"></span>}
+                  </button>
+                  {showNotifications && (
+                    <div className="fixed top-14 left-4 right-4 bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border dark:border-gray-700 overflow-hidden z-[10001] animate-in fade-in slide-in-from-top-2">
+                       <div className="p-4 bg-gray-50 dark:bg-gray-700/50 flex justify-between items-center">
+                          <span className="text-[10px] font-black uppercase text-gray-500">Bildirimler</span>
+                          <button onClick={() => setShowNotifications(false)} className="text-gray-400"><X size={18}/></button>
+                       </div>
+                       <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
+                          {notifications.map(n => (
+                            <div key={n.id} className="p-4 border-b dark:border-gray-700">
+                               <div className="font-black text-xs uppercase mb-1">{n.title}</div>
+                               <div className="text-[11px] text-gray-500 dark:text-gray-400">{n.message}</div>
+                            </div>
+                          ))}
+                       </div>
+                    </div>
+                  )}
+               </div>
             )}
             <button onClick={toggleTheme} className="p-2 text-gray-600 dark:text-gray-300">{theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}</button>
           </div>

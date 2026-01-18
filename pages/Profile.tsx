@@ -1,19 +1,13 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Navbar from '../components/Navbar';
 import { 
-  User, 
-  CreditCard, 
-  Car, 
-  Settings, 
   PlusCircle, 
   Edit, 
   Trash2, 
   LogOut, 
-  CheckCircle, 
   Calendar, 
   MapPin, 
-  Phone, 
   Mail, 
   ChevronRight, 
   Star,
@@ -23,22 +17,111 @@ import {
   X,
   Save,
   Search,
-  MessageSquare
+  MessageSquare,
+  Car
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { checkAuthStatus } from '../services/firebase';
+
+// Modal components defined outside to prevent re-mounting on every keystroke
+const EditCarModal = ({ isOpen, car, onClose, onUpdate }: any) => {
+  const [editingCar, setEditingCar] = useState<any>(car);
+  
+  useEffect(() => { setEditingCar(car); }, [car]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white dark:bg-gray-800 w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto custom-scrollbar">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-widest">İlanı Düzenle</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X /></button>
+        </div>
+        <div className="space-y-5">
+           <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Marka</label>
+                <input type="text" value={editingCar?.brand} onChange={e => setEditingCar({...editingCar, brand: e.target.value})} className="w-full p-4 bg-gray-50 dark:bg-gray-700 rounded-2xl border-none outline-none font-bold" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Model</label>
+                <input type="text" value={editingCar?.model} onChange={e => setEditingCar({...editingCar, model: e.target.value})} className="w-full p-4 bg-gray-50 dark:bg-gray-700 rounded-2xl border-none outline-none font-bold" />
+              </div>
+           </div>
+           <button onClick={() => onUpdate(editingCar)} className="w-full bg-primary-600 text-white py-4 rounded-2xl font-black mt-4 flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
+             <Save size={20} /> Bilgileri Güncelle
+           </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ReviewModal = ({ isOpen, onClose, onSubmit }: any) => {
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl animate-in zoom-in-95 relative">
+        <button 
+          onClick={onClose} 
+          className="absolute top-8 right-8 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+        >
+          <X size={28} strokeWidth={2.5} />
+        </button>
+
+        <h3 className="text-2xl font-black text-gray-900 dark:text-white uppercase tracking-wider mb-8">YORUM YAP</h3>
+        
+        <div className="space-y-8">
+          <div className="flex justify-center gap-3">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button 
+                key={star} 
+                type="button"
+                onClick={() => setRating(star)} 
+                className={`p-1 transition-transform active:scale-90 ${rating >= star ? 'text-yellow-400' : 'text-gray-200 dark:text-gray-700'}`}
+              >
+                <Star size={44} fill={rating >= star ? 'currentColor' : 'none'} strokeWidth={1.5} />
+              </button>
+            ))}
+          </div>
+
+          <div>
+            <label className="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em] mb-3 block">DENEYİMİNİZ</label>
+            <textarea 
+              rows={5} 
+              value={comment} 
+              onChange={e => setComment(e.target.value)} 
+              className="w-full p-6 bg-gray-50 dark:bg-gray-900/50 rounded-[2rem] border-none outline-none font-bold text-gray-700 dark:text-gray-200 placeholder-gray-300 resize-none transition-all focus:ring-2 focus:ring-primary-500/10" 
+              placeholder="..."
+            />
+          </div>
+
+          <button 
+            onClick={() => onSubmit({ rating, comment })} 
+            className="w-full bg-primary-600 hover:bg-primary-700 text-white py-5 rounded-[1.5rem] font-black flex items-center justify-center gap-3 shadow-xl shadow-primary-600/20 active:scale-95 transition-all text-lg"
+          >
+            <MessageSquare size={24} fill="white" /> Gönder
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const ProfilePage = () => {
   const navigate = useNavigate();
   const [userData, setUserData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('guest');
-  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isEditCarOpen, setIsEditCarOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   
   const [editingCar, setEditingCar] = useState<any>(null);
   const [selectedTrip, setSelectedTrip] = useState<any>(null);
-  const [reviewData, setReviewData] = useState({ rating: 5, comment: '' });
   
   const [myTrips, setMyTrips] = useState<any[]>([]);
   const [myCars, setMyCars] = useState<any[]>([]);
@@ -83,117 +166,48 @@ const ProfilePage = () => {
     }
   };
 
-  const openCarEdit = (car: any) => {
-      setEditingCar({...car});
-      setIsEditCarOpen(true);
-  };
-
-  const handleUpdateCar = () => {
-      const updated = myCars.map(c => c.id === editingCar.id ? editingCar : c);
+  const handleUpdateCar = (updatedCar: any) => {
+      const updated = myCars.map(c => c.id === updatedCar.id ? updatedCar : c);
       localStorage.setItem('myCars', JSON.stringify(updated));
       setMyCars(updated);
       setIsEditCarOpen(false);
       
-      // Bildirim Ekle
       const notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
-      notifications.unshift({ id: Date.now(), title: 'İlan Güncellendi', message: `${editingCar.brand} ${editingCar.model} aracınızın bilgileri güncellendi.`, time: 'Az önce', read: false });
+      notifications.unshift({ id: Date.now(), title: 'İlan Güncellendi', message: `${updatedCar.brand} ${updatedCar.model} aracınız güncellendi.`, time: 'Az önce', read: false });
       localStorage.setItem('notifications', JSON.stringify(notifications.slice(0, 10)));
-      
-      alert("İlan başarıyla güncellendi.");
+      window.dispatchEvent(new Event('newNotification'));
   };
 
-  const handleReviewSubmit = () => {
-    if (!reviewData.comment) return alert("Lütfen bir yorum yazın.");
+  const handleReviewSubmit = ({ rating, comment }: { rating: number, comment: string }) => {
+    if (!comment) return alert("Lütfen bir yorum yazın.");
     
-    // Yolculuğu güncelle (yorum yapıldı olarak işaretle)
-    const updatedTrips = myTrips.map(t => t.id === selectedTrip.id ? { ...t, reviewed: true, rating: reviewData.rating, comment: reviewData.comment } : t);
+    const updatedTrips = myTrips.map(t => t.id === selectedTrip.id ? { ...t, reviewed: true, rating, comment } : t);
     localStorage.setItem('myTrips', JSON.stringify(updatedTrips));
     setMyTrips(updatedTrips);
     setIsReviewModalOpen(false);
     
-    // Simüle edilmiş bildirim
     const notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
-    notifications.unshift({ id: Date.now(), title: 'Değerlendirme Başarılı', message: `${selectedTrip.carName} için yorumunuz paylaşıldı.`, time: 'Az önce', read: false });
+    notifications.unshift({ id: Date.now(), title: 'Teşekkürler!', message: `${selectedTrip.carName} için yorumunuz paylaşıldı.`, time: 'Az önce', read: false, type: 'success' });
     localStorage.setItem('notifications', JSON.stringify(notifications.slice(0, 10)));
-    
-    alert("Yorumunuz için teşekkürler!");
+    window.dispatchEvent(new Event('newNotification'));
   };
-
-  const EditCarModal = () => (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white dark:bg-gray-800 w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto custom-scrollbar">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-widest">İlanı Düzenle</h3>
-          <button onClick={() => setIsEditCarOpen(false)} className="text-gray-400 hover:text-gray-600"><X /></button>
-        </div>
-        <div className="space-y-5">
-           <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Marka</label>
-                <input type="text" value={editingCar?.brand} onChange={e => setEditingCar({...editingCar, brand: e.target.value})} className="w-full p-4 bg-gray-50 dark:bg-gray-700 rounded-2xl border-none outline-none font-bold" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Model</label>
-                <input type="text" value={editingCar?.model} onChange={e => setEditingCar({...editingCar, model: e.target.value})} className="w-full p-4 bg-gray-50 dark:bg-gray-700 rounded-2xl border-none outline-none font-bold" />
-              </div>
-           </div>
-           <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Günlük Fiyat (₺)</label>
-                <input type="number" value={editingCar?.pricePerDay} onChange={e => setEditingCar({...editingCar, pricePerDay: e.target.value})} className="w-full p-4 bg-gray-50 dark:bg-gray-700 rounded-2xl border-none outline-none font-bold" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Yıl</label>
-                <input type="number" value={editingCar?.year} onChange={e => setEditingCar({...editingCar, year: e.target.value})} className="w-full p-4 bg-gray-50 dark:bg-gray-700 rounded-2xl border-none outline-none font-bold" />
-              </div>
-           </div>
-           <button onClick={handleUpdateCar} className="w-full bg-primary-600 text-white py-4 rounded-2xl font-black mt-4 flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
-             <Save size={20} /> Bilgileri Güncelle
-           </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  const ReviewModal = () => (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in-95">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-widest">Yorum Yap</h3>
-          <button onClick={() => setIsReviewModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X /></button>
-        </div>
-        <div className="space-y-6">
-          <div className="flex justify-center gap-3">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <button key={star} onClick={() => setReviewData({...reviewData, rating: star})} className={`p-1 transition-transform active:scale-90 ${reviewData.rating >= star ? 'text-yellow-400' : 'text-gray-300'}`}>
-                <Star size={32} fill={reviewData.rating >= star ? 'currentColor' : 'none'} />
-              </button>
-            ))}
-          </div>
-          <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Deneyiminiz</label>
-            <textarea 
-              rows={4} 
-              value={reviewData.comment} 
-              onChange={e => setReviewData({...reviewData, comment: e.target.value})} 
-              className="w-full p-4 bg-gray-50 dark:bg-gray-700 rounded-2xl border-none outline-none font-medium resize-none" 
-              placeholder="Araç nasıldı? Araç sahibi yardımcı oldu mu?"
-            />
-          </div>
-          <button onClick={handleReviewSubmit} className="w-full bg-primary-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2">
-            <MessageSquare size={20} /> Gönder
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 font-sans transition-colors duration-300 pb-24">
       <Navbar />
       
-      {isEditCarOpen && <EditCarModal />}
-      {isReviewModalOpen && <ReviewModal />}
+      <EditCarModal 
+        isOpen={isEditCarOpen} 
+        car={editingCar} 
+        onClose={() => setIsEditCarOpen(false)} 
+        onUpdate={handleUpdateCar} 
+      />
+      
+      <ReviewModal 
+        isOpen={isReviewModalOpen} 
+        onClose={() => setIsReviewModalOpen(false)} 
+        onSubmit={handleReviewSubmit} 
+      />
 
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="flex flex-col md:flex-row gap-8 items-start mb-12">
@@ -216,6 +230,10 @@ const ProfilePage = () => {
                 </div>
               </div>
            </div>
+
+           <button onClick={handleLogout} className="p-4 bg-red-50 dark:bg-red-900/10 text-red-600 rounded-2xl hover:bg-red-100 transition-colors">
+              <LogOut size={24} />
+           </button>
         </div>
 
         <div className="flex bg-gray-200/50 dark:bg-gray-900 p-2 rounded-[2rem] mb-10 max-w-md">
@@ -321,7 +339,7 @@ const ProfilePage = () => {
                                </div>
                             </div>
                             <div className="flex gap-3 pt-6 border-t dark:border-gray-800">
-                               <button onClick={() => openCarEdit(car)} className="flex-1 py-4 bg-gray-50 dark:bg-gray-800 rounded-2xl font-black text-[10px] uppercase tracking-widest text-gray-600 dark:text-gray-300 hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
+                               <button onClick={() => { setEditingCar(car); setIsEditCarOpen(true); }} className="flex-1 py-4 bg-gray-50 dark:bg-gray-800 rounded-2xl font-black text-[10px] uppercase tracking-widest text-gray-600 dark:text-gray-300 hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
                                   <Edit size={14} /> Düzenle
                                </button>
                                <button onClick={() => deleteCar(car.id)} className="p-4 bg-red-50 dark:bg-red-900/10 text-red-500 rounded-2xl hover:bg-red-100 transition-colors">
