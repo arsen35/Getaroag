@@ -23,13 +23,14 @@ interface ErrorBoundaryState {
 
 // Using React.Component explicitly to avoid Property 'props' does not exist error on class components in some environments
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Fix: Explicitly define props to avoid TS error in some environments
+  // Fix: Explicitly define state and props to avoid TS errors in some environments
+  state: ErrorBoundaryState;
   props: ErrorBoundaryProps;
 
   constructor(props: ErrorBoundaryProps) {
     super(props);
+    // Initialize state here or as a property. Using constructor to ensure super(props) is called.
     this.state = { hasError: false };
-    this.props = props;
   }
 
   static getDerivedStateFromError(_: any): ErrorBoundaryState {
@@ -41,6 +42,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   render() {
+    // Accessing state and props explicitly
     const { hasError } = this.state;
     const { children } = this.props;
 

@@ -61,10 +61,14 @@ const Navbar = () => {
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  const loadProfile = () => {
     const profile = JSON.parse(localStorage.getItem('userProfile') || '{}');
     if (profile.name) setUser(profile);
+  };
 
+  useEffect(() => {
+    loadProfile();
+    
     const handleClickOutside = (event: MouseEvent) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
         setShowProfileMenu(false);
@@ -73,8 +77,14 @@ const Navbar = () => {
         setShowNotifications(false);
       }
     };
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    window.addEventListener('storage', loadProfile);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('storage', loadProfile);
+    };
   }, []);
 
   const handleLogout = () => {
@@ -124,31 +134,42 @@ const Navbar = () => {
                       onClick={() => setShowProfileMenu(!showProfileMenu)}
                       className="flex items-center gap-2 bg-primary-50 dark:bg-primary-900/20 px-4 py-2 rounded-full border-2 border-primary-100 dark:border-primary-800 hover:border-primary-300 transition-all"
                     >
-                      {user?.avatar ? (
-                        <img src={user.avatar} className="w-6 h-6 rounded-full object-cover" />
-                      ) : (
-                        <UserCircle size={20} className="text-primary-600" />
-                      )}
-                      <span className="text-sm font-bold text-primary-700 dark:text-primary-300">{user?.name || 'Hesabım'}</span>
+                      <div className="relative">
+                        {user?.avatar ? (
+                          <img src={user.avatar} className="w-6 h-6 rounded-full object-cover" />
+                        ) : (
+                          <UserCircle size={20} className="text-primary-600" />
+                        )}
+                        {user?.isVerified && (
+                          <div className="absolute -top-1 -right-1 bg-green-500 text-white rounded-full p-0.5 border border-white">
+                            <ShieldCheck size={8} />
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-sm font-bold text-primary-700 dark:text-primary-300 truncate max-w-[80px]">{user?.name || 'Hesabım'}</span>
                       <ChevronDown size={14} className={`text-primary-600 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
                     </button>
 
                     {showProfileMenu && (
                       <div className="absolute right-0 mt-3 w-72 bg-white dark:bg-gray-800 rounded-[2rem] shadow-2xl border dark:border-gray-700 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                         <div className="p-6 bg-gray-50 dark:bg-gray-700/50 flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-full bg-primary-600 flex items-center justify-center text-white font-black text-xl">
-                            {user?.avatar ? <img src={user.avatar} className="w-full h-full rounded-full object-cover" /> : user?.name?.[0]}
+                          <div className="w-12 h-12 rounded-full bg-primary-600 flex items-center justify-center text-white font-black text-xl overflow-hidden shadow-inner">
+                            {user?.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : user?.name?.[0]}
                           </div>
                           <div>
-                            <h4 className="font-black text-sm uppercase text-gray-900 dark:text-white leading-none">{user?.name} {user?.surname}</h4>
+                            <div className="flex items-center gap-2">
+                               <h4 className="font-black text-sm uppercase text-gray-900 dark:text-white leading-none truncate max-w-[120px]">{user?.name} {user?.surname}</h4>
+                               {user?.isVerified && <CheckCircle size={14} className="text-green-500" />}
+                            </div>
                             <button onClick={() => { navigate('/profile'); setShowProfileMenu(false); }} className="text-[10px] font-bold text-primary-600 uppercase hover:underline mt-1">Hesabını Düzenle</button>
                           </div>
                         </div>
                         <div className="p-2">
                            <button onClick={() => { navigate('/profile?tab=verify'); setShowProfileMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                              <ShieldCheck size={18} className="text-gray-400" />
-                              <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Profilini Doğrula</span>
+                              <ShieldCheck size={18} className={user?.isVerified ? "text-green-500" : "text-gray-400"} />
+                              <span className="text-sm font-bold text-gray-700 dark:text-gray-200">{user?.isVerified ? "Hesabın Doğrulandı" : "Profilini Doğrula"}</span>
                            </button>
+                           {/* ... diğer menü elemanları aynı kalacak ... */}
                            <button onClick={() => { navigate('/profile?tab=rentals'); setShowProfileMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                               <Clock size={18} className="text-gray-400" />
                               <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Kiralamalarım</span>
@@ -161,13 +182,6 @@ const Navbar = () => {
                               <CreditCard size={18} className="text-gray-400" />
                               <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Ödemeler</span>
                            </button>
-                           <div className="bg-gray-50 dark:bg-gray-900/50 m-2 p-4 rounded-2xl flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <Gift size={18} className="text-primary-600" />
-                                <span className="text-xs font-bold text-gray-700 dark:text-gray-200">₺500 kredi kazan</span>
-                              </div>
-                              <Gift size={14} className="text-gray-400" />
-                           </div>
                            <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-red-50 text-red-600 transition-colors mt-2">
                               <LogOut size={18} />
                               <span className="text-sm font-bold">Çıkış Yap</span>
@@ -183,15 +197,12 @@ const Navbar = () => {
                   <Link to="/signup" className="bg-primary-600 text-white px-5 py-2.5 rounded-full font-black text-sm hover:bg-primary-700 transition-colors shadow-md flex items-center gap-2">Üye Ol</Link>
                 </div>
               )}
-              <div className="h-8 w-px bg-gray-200 dark:bg-gray-700 mx-2"></div>
-              <Link to="/list-car" className="bg-white dark:bg-gray-800 border-2 border-primary-600 text-primary-600 dark:text-primary-400 px-5 py-2.5 rounded-full font-black text-xs uppercase tracking-widest hover:bg-primary-50 dark:hover:bg-gray-700 transition-all duration-300 shadow-sm">
-                Aracını Listele
-              </Link>
             </div>
           </div>
         </div>
       </nav>
 
+      {/* MobileBottomNav aynen devam edecek */}
       <div className="md:hidden sticky top-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md px-4 py-3 flex justify-between items-center shadow-sm transition-colors duration-300">
          <Link to="/" className="flex items-center space-x-2">
             <div className="bg-primary-600 text-white p-1.5 rounded-lg">
