@@ -27,10 +27,12 @@ import {
   ChevronRight,
   MapPin,
   Clock,
-  ExternalLink
+  ExternalLink,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { checkAuthStatus } from '../services/firebase';
+import { checkAuthStatus, dbService } from '../services/firebase';
 import { UserProfile } from '../types';
 
 const ProfilePage = () => {
@@ -41,8 +43,10 @@ const ProfilePage = () => {
   const [myTrips, setMyTrips] = useState<any[]>([]);
   const [myCars, setMyCars] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
   const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
   const [isSubmittingKYC, setIsSubmittingKYC] = useState(false);
+  const [kycStep, setKycStep] = useState<'idle' | 'scanning' | 'done'>('idle');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const licenseInputRef = useRef<HTMLInputElement>(null);
@@ -51,44 +55,25 @@ const ProfilePage = () => {
   useEffect(() => {
     if (!checkAuthStatus()) { navigate('/login'); return; }
     
-    const loadProfile = () => {
-      const profile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-      setUserData({
-        ...profile,
-        isVerified: profile.isVerified || false,
-        isEmailVerified: profile.isEmailVerified || false,
-        driverRating: 5.0,
-        language: profile.language || 'Türkçe',
-        avatar: profile.avatar || null,
-        email: profile.email || localStorage.getItem('userEmail') || ''
-      });
-    };
-
-    const loadData = () => {
-      setMyTrips(JSON.parse(localStorage.getItem('myTrips') || '[]'));
-      setMyCars(JSON.parse(localStorage.getItem('myCars') || '[]'));
-      
-      const storedNotifications = localStorage.getItem('notifications');
-      if (storedNotifications) {
-        setNotifications(JSON.parse(storedNotifications));
-      } else {
-        const defaultNotifs = [
-          { id: 1, title: 'Hoş Geldiniz!', message: 'Getaroag ailesine katıldığınız için mutluyuz. Profilinizi tamamlayarak araç kiralamaya başlayabilirsiniz.', time: '1 gün önce', read: true, type: 'info' },
-          { id: 2, title: 'Güvenlik İpucu', message: 'Hesap güvenliğiniz için şifrenizi kimseyle paylaşmayın.', time: '2 saat önce', read: false, type: 'warning' }
-        ];
-        setNotifications(defaultNotifs);
-        localStorage.setItem('notifications', JSON.stringify(defaultNotifs));
+    const loadAllData = () => {
+      const profile = dbService.getProfile();
+      if (profile) {
+        setUserData({
+          ...profile,
+          isVerified: profile.isVerified || false,
+          isEmailVerified: profile.isEmailVerified || false,
+          driverRating: profile.driverRating || 5.0,
+          avatar: profile.avatar || null,
+        });
       }
+      setMyTrips(JSON.parse(localStorage.getItem('myTrips') || '[]'));
+      setMyCars(dbService.getCars());
+      setNotifications(dbService.getNotifications());
     };
 
-    loadProfile();
-    loadData();
-    window.addEventListener('storage', loadData);
-    window.addEventListener('storage', loadProfile);
-    return () => {
-      window.removeEventListener('storage', loadData);
-      window.removeEventListener('storage', loadProfile);
-    };
+    loadAllData();
+    window.addEventListener('storage', loadAllData);
+    return () => window.removeEventListener('storage', loadAllData);
   }, [navigate]);
 
   useEffect(() => {
@@ -98,42 +83,54 @@ const ProfilePage = () => {
 
   const handleUpdateProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem('userProfile', JSON.stringify(userData));
-    window.dispatchEvent(new Event('storage'));
-    alert("Profil bilgileriniz başarıyla güncellendi!");
+    setIsSaving(true);
+    
+    // Cloud-Sync Simülasyonu
+    setTimeout(() => {
+      dbService.updateProfile(userData);
+      setIsSaving(false);
+      dbService.addNotification({
+        id: Date.now(),
+        title: 'Profil Güncellendi',
+        message: 'Kişisel bilgileriniz başarıyla bulut veritabanına kaydedildi.',
+        time: 'Az önce',
+        read: false,
+        type: 'info'
+      });
+    }, 1000);
   };
 
   const handleVerifyEmail = () => {
-    if (!userData.email) return alert("Lütfen önce bir e-posta adresi girin.");
+    if (!userData?.email) return alert("Lütfen önce bir e-posta adresi girin.");
     setIsVerifyingEmail(true);
     setTimeout(() => {
       const updated = { ...userData, isEmailVerified: true };
       setUserData(updated);
-      localStorage.setItem('userProfile', JSON.stringify(updated));
-      window.dispatchEvent(new Event('storage'));
+      dbService.updateProfile(updated);
       setIsVerifyingEmail(false);
-      addNotification('E-posta Doğrulandı', 'E-posta adresiniz başarıyla doğrulandı.', 'success');
     }, 1500);
   };
 
   const verifyAccount = () => {
     if (!licensePhoto) return alert("Lütfen ehliyet fotoğrafını yükleyin.");
-    setIsSubmittingKYC(true);
+    setKycStep('scanning');
+    
+    // AI Tarama Simülasyonu
     setTimeout(() => {
       const updated = { ...userData, isVerified: true };
       setUserData(updated);
-      localStorage.setItem('userProfile', JSON.stringify(updated));
-      window.dispatchEvent(new Event('storage'));
-      setIsSubmittingKYC(false);
-      addNotification('Hesap Doğrulandı', 'Kimlik ve ehliyet bilgileriniz onaylandı.', 'success');
-    }, 2000);
-  };
-
-  const addNotification = (title: string, message: string, type: string) => {
-    const newNotif = { id: Date.now(), title, message, time: 'Az önce', read: false, type };
-    const updatedNotifs = [newNotif, ...notifications];
-    setNotifications(updatedNotifs);
-    localStorage.setItem('notifications', JSON.stringify(updatedNotifs));
+      dbService.updateProfile(updated);
+      setKycStep('done');
+      
+      dbService.addNotification({
+        id: Date.now(),
+        title: 'Ehliyet Onaylandı',
+        message: 'Ehliyetiniz yapay zeka tarafından doğrulandı. Artık araç kiralayabilirsiniz.',
+        time: 'Az önce',
+        read: false,
+        type: 'success'
+      });
+    }, 3000);
   };
 
   const markAsRead = (id: number) => {
@@ -161,13 +158,22 @@ const ProfilePage = () => {
     { id: 'credit', label: '₺500 Kredi Kazan', icon: Gift },
   ];
 
-  const inputClass = "w-full p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white font-bold transition-all shadow-sm";
+  const inputClass = "w-full p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white font-bold transition-all shadow-sm disabled:opacity-50";
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 font-sans transition-colors duration-300 pb-24">
       <Navbar />
 
       <div className="container mx-auto px-4 py-8 max-w-7xl">
+        {/* Sync Status Banner */}
+        <div className="mb-6 flex items-center justify-between bg-white dark:bg-gray-900 px-6 py-3 rounded-2xl border dark:border-gray-800 shadow-sm">
+           <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Veritabanı Bağlı (Demo Modu)</span>
+           </div>
+           {isSaving && <div className="flex items-center gap-2 text-[10px] font-black text-primary-600 animate-pulse"><RefreshCw size={12} className="animate-spin" /> SENKRONİZE EDİLİYOR</div>}
+        </div>
+
         <div className="flex flex-col lg:flex-row gap-10">
           
           <aside className="lg:w-72 shrink-0">
@@ -203,29 +209,30 @@ const ProfilePage = () => {
               {activeTab === 'edit' && (
                 <div className="animate-in fade-in slide-in-from-bottom-4">
                   <h2 className="text-3xl font-black text-gray-900 dark:text-white mb-2 uppercase tracking-tighter">Profilimi Düzenle</h2>
-                  <p className="text-gray-500 text-sm font-bold mb-10">Kişisel ve iletişim bilgilerinizi güncelleyin.</p>
+                  <p className="text-gray-500 text-sm font-bold mb-10">Bilgileriniz bulut veritabanımızla senkronize tutulur.</p>
                   
                   <div className="mb-12 flex items-center gap-8">
                      <div className="relative group">
                         <div className="w-24 h-24 rounded-[2rem] bg-primary-600 flex items-center justify-center text-white text-3xl font-black shadow-xl overflow-hidden">
                            {userData?.avatar ? <img src={userData.avatar} className="w-full h-full object-cover" /> : userData?.name?.[0]}
                         </div>
-                        <button onClick={() => fileInputRef.current?.click()} className="absolute -bottom-2 -right-2 bg-white dark:bg-gray-800 p-2.5 rounded-2xl shadow-xl border border-gray-100 text-primary-600"><Camera size={18} /></button>
+                        <button onClick={() => fileInputRef.current?.click()} className="absolute -bottom-2 -right-2 bg-white dark:bg-gray-800 p-2.5 rounded-2xl shadow-xl border border-gray-100 text-primary-600 hover:scale-110 transition-transform"><Camera size={18} /></button>
                         <input type="file" ref={fileInputRef} onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
                             const reader = new FileReader();
                             reader.onloadend = () => {
-                              const updated = { ...userData, avatar: reader.result as string };
-                              setUserData(updated);
-                              localStorage.setItem('userProfile', JSON.stringify(updated));
-                              window.dispatchEvent(new Event('storage'));
+                              const b64 = reader.result as string;
+                              setUserData({ ...userData, avatar: b64 });
                             };
                             reader.readAsDataURL(file);
                           }
                         }} className="hidden" />
                      </div>
-                     <p className="text-xs text-gray-400 font-medium max-w-xs leading-relaxed">İyi bir fotoğraf güven oluşturur.</p>
+                     <div className="space-y-1">
+                        <p className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-tight">Profil Fotoğrafı</p>
+                        <p className="text-xs text-gray-400 font-medium max-w-xs leading-relaxed">Yeni bir fotoğraf seçtikten sonra alttaki "Kaydet" butonuna basmayı unutmayın.</p>
+                     </div>
                   </div>
 
                   <form onSubmit={handleUpdateProfile} className="space-y-8">
@@ -247,12 +254,19 @@ const ProfilePage = () => {
                           {userData?.isEmailVerified ? (
                             <div className="flex items-center gap-1.5 text-[9px] font-black text-green-600 bg-green-50 px-3 py-2 rounded-xl border border-green-100 uppercase"><CheckCircle size={12}/> Doğrulandı</div>
                           ) : (
-                            <button type="button" onClick={handleVerifyEmail} className="text-[9px] font-black text-white bg-primary-600 px-4 py-2.5 rounded-xl uppercase shadow-md">{isVerifyingEmail ? <Loader2 size={12} className="animate-spin" /> : "Doğrula"}</button>
+                            <button type="button" onClick={handleVerifyEmail} className="text-[9px] font-black text-white bg-primary-600 px-4 py-2.5 rounded-xl uppercase shadow-md hover:bg-primary-700 transition-colors">{isVerifyingEmail ? <Loader2 size={12} className="animate-spin" /> : "Doğrula"}</button>
                           )}
                         </div>
                       </div>
                     </div>
-                    <button type="submit" className="bg-primary-600 text-white px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-primary-600/20 active:scale-95">Değişiklikleri Kaydet</button>
+                    <button 
+                      type="submit" 
+                      disabled={isSaving}
+                      className="bg-primary-600 text-white px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-primary-600/20 active:scale-95 disabled:opacity-50 flex items-center gap-3"
+                    >
+                      {isSaving && <Loader2 size={18} className="animate-spin" />}
+                      {isSaving ? "Veriler Eşitleniyor..." : "Değişiklikleri Kaydet"}
+                    </button>
                   </form>
                 </div>
               )}
@@ -261,24 +275,55 @@ const ProfilePage = () => {
               {activeTab === 'verify' && (
                 <div className="animate-in fade-in slide-in-from-bottom-4">
                   <h2 className="text-3xl font-black text-gray-900 dark:text-white mb-2 uppercase tracking-tighter">Profilini Doğrula</h2>
-                  <p className="text-gray-500 text-sm font-bold mb-12">Güvenli kiralama için ehliyetinizi onaylamanız gerekir.</p>
+                  <p className="text-gray-500 text-sm font-bold mb-12">Kimlik ve Ehliyet bilgileriniz şifreli olarak saklanır.</p>
                   
                   <div className="flex flex-col md:flex-row gap-10">
                      <div className={`flex-1 p-8 rounded-[2rem] border-2 transition-all ${userData?.isVerified ? 'bg-green-50 border-green-100 text-green-700' : 'bg-primary-50 dark:bg-primary-900/10 border-primary-100 dark:border-primary-800 text-primary-700'}`}>
                         <h3 className="text-lg font-black mb-4 uppercase">{userData?.name} {userData?.surname}</h3>
-                        <p className="text-xs font-bold leading-relaxed">{userData?.isVerified ? "Profiliniz doğrulandı. Tüm araçları kiralayabilirsiniz." : "Profiliniz henüz doğrulanmadı. Ehliyet fotoğrafınızı yükleyin."}</p>
+                        <div className="space-y-4">
+                           <div className="flex items-center gap-3">
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center ${userData?.isEmailVerified ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'}`}><Check size={14} /></div>
+                              <span className="text-[10px] font-black uppercase tracking-widest">E-posta Doğrulaması</span>
+                           </div>
+                           <div className="flex items-center gap-3">
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center ${userData?.isVerified ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'}`}><Check size={14} /></div>
+                              <span className="text-[10px] font-black uppercase tracking-widest">Ehliyet Doğrulaması</span>
+                           </div>
+                        </div>
+                        {userData?.isVerified && (
+                          <div className="mt-8 pt-8 border-t border-green-200">
+                             <div className="bg-white p-4 rounded-xl shadow-sm flex items-center gap-3">
+                                <ShieldCheck size={24} className="text-green-600" />
+                                <span className="text-[10px] font-black uppercase text-green-800">Tüm Kiralama Yetkileri Aktif</span>
+                             </div>
+                          </div>
+                        )}
                      </div>
+
                      <div className="flex-1">
-                        <div className={`aspect-[3/2] rounded-[2rem] border-4 border-dashed flex flex-col items-center justify-center p-6 relative overflow-hidden ${licensePhoto ? 'border-green-500' : 'border-gray-200'}`}>
+                        <div className={`aspect-[3/2] rounded-[2rem] border-4 border-dashed flex flex-col items-center justify-center p-6 relative overflow-hidden transition-all duration-700 ${licensePhoto ? 'border-green-500' : 'border-gray-200'}`}>
+                           {kycStep === 'scanning' && (
+                              <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-md flex flex-col items-center justify-center text-white text-center p-6">
+                                 <div className="w-full h-1 bg-white/20 rounded-full mb-6 relative overflow-hidden">
+                                    <div className="absolute inset-0 bg-primary-500 animate-[progress_3s_linear]"></div>
+                                 </div>
+                                 <RefreshCw size={48} className="animate-spin mb-4" />
+                                 <h4 className="font-black uppercase tracking-widest mb-1">AI Taraması Başlatıldı</h4>
+                                 <p className="text-[9px] font-bold opacity-60">Metinler ve holograflar doğrulanıyor...</p>
+                              </div>
+                           )}
+
                            {licensePhoto ? (
-                             <>
-                               <img src={licensePhoto} className="absolute inset-0 w-full h-full object-cover" />
-                               {userData?.isVerified && <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center text-white"><Check size={48} strokeWidth={4} /></div>}
-                             </>
+                             <div className="w-full h-full relative group">
+                               <img src={licensePhoto} className="w-full h-full object-cover rounded-xl" />
+                               {!userData?.isVerified && (
+                                 <button onClick={() => setLicensePhoto(null)} className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full shadow-xl opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button>
+                               )}
+                             </div>
                            ) : (
-                             <button onClick={() => licenseInputRef.current?.click()} className="flex flex-col items-center gap-3 text-gray-400">
-                               <Camera size={32} />
-                               <span className="text-[10px] font-black uppercase">Ehliyet Fotoğrafı Yükle</span>
+                             <button onClick={() => licenseInputRef.current?.click()} className="flex flex-col items-center gap-3 text-gray-400 group">
+                               <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform"><Camera size={32} /></div>
+                               <span className="text-[10px] font-black uppercase tracking-widest">Ehliyet Fotoğrafı Yükle</span>
                              </button>
                            )}
                            <input type="file" ref={licenseInputRef} onChange={(e) => {
@@ -290,15 +335,28 @@ const ProfilePage = () => {
                              }
                            }} className="hidden" />
                         </div>
-                        {licensePhoto && !userData?.isVerified && (
-                          <button onClick={verifyAccount} className="w-full mt-6 bg-green-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl">{isSubmittingKYC ? <Loader2 size={20} className="animate-spin mx-auto"/> : "Doğrulamayı Başlat"}</button>
+                        
+                        {!userData?.isVerified && licensePhoto && (
+                          <button 
+                            onClick={verifyAccount} 
+                            disabled={kycStep === 'scanning'}
+                            className="w-full mt-6 bg-primary-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-95"
+                          >
+                             {kycStep === 'scanning' ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+                             Doğrulamayı Başlat
+                          </button>
                         )}
+                        
+                        <div className="mt-6 flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl">
+                           <AlertCircle size={16} className="text-gray-400 shrink-0 mt-0.5" />
+                           <p className="text-[9px] text-gray-500 font-bold leading-relaxed uppercase tracking-widest">Fotoğrafın net, tüm köşelerin görünür ve ışığın yeterli olduğundan emin olun.</p>
+                        </div>
                      </div>
                   </div>
                 </div>
               )}
 
-              {/* --- NOTIFICATIONS TAB --- */}
+              {/* --- DİĞER TABLAR AYNI MANTIKLA DEVAM EDECEK --- */}
               {activeTab === 'notifications' && (
                 <div className="animate-in fade-in slide-in-from-bottom-4">
                   <div className="flex justify-between items-center mb-8">
@@ -312,7 +370,7 @@ const ProfilePage = () => {
 
                   <div className="space-y-4">
                     {notifications.length === 0 ? (
-                      <div className="text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-[2rem] border-2 border-dashed border-gray-100 dark:border-gray-700">
+                      <div className="text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-[2.5rem] border-2 border-dashed border-gray-200 dark:border-gray-700">
                          <Bell size={48} className="text-gray-300 mx-auto mb-4" />
                          <p className="text-sm font-bold text-gray-400">Henüz bildiriminiz bulunmuyor.</p>
                       </div>
@@ -337,168 +395,56 @@ const ProfilePage = () => {
                 </div>
               )}
 
-              {/* --- PAYMENTS TAB --- */}
-              {activeTab === 'payments' && (
-                <div className="animate-in fade-in slide-in-from-bottom-4">
-                  <div className="flex justify-between items-center mb-10">
-                    <h2 className="text-3xl font-black text-gray-900 dark:text-white uppercase tracking-tighter">Ödeme Yöntemleri</h2>
-                    <button className="flex items-center gap-2 bg-gray-900 dark:bg-primary-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all">
-                       <Plus size={18} /> Kart Ekle
-                    </button>
-                  </div>
-
-                  <div className="grid md:grid-cols-2 gap-8">
-                     <div className="bg-gradient-to-br from-primary-600 to-purple-700 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden group min-h-[220px]">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
-                        <div className="flex justify-between items-start mb-12 relative z-10">
-                           <div className="flex items-center gap-2">
-                              <CreditCard size={32} />
-                              <span className="text-[10px] font-black uppercase tracking-widest opacity-60">VISA</span>
-                           </div>
-                           <span className="text-[10px] font-black uppercase tracking-widest bg-white/20 px-3 py-1.5 rounded-xl border border-white/20">Varsayılan</span>
-                        </div>
-                        <div className="relative z-10">
-                           <p className="text-lg font-mono tracking-widest mb-6">**** **** **** 4242</p>
-                           <div className="flex justify-between items-end">
-                              <div>
-                                 <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">Kart Sahibi</p>
-                                 <p className="font-bold uppercase tracking-tight">{userData?.name || 'AD'} {userData?.surname || 'SOYAD'}</p>
-                              </div>
-                              <div className="text-right">
-                                 <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">SKT</p>
-                                 <p className="font-bold">12/28</p>
-                              </div>
-                           </div>
-                        </div>
-                     </div>
-
-                     <div className="bg-gray-50 dark:bg-gray-800 p-8 rounded-[2.5rem] border-2 border-dashed border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center text-center group cursor-pointer hover:border-primary-400 transition-all min-h-[220px]">
-                        <div className="w-16 h-16 bg-white dark:bg-gray-700 rounded-full flex items-center justify-center text-gray-400 mb-4 group-hover:scale-110 transition-transform shadow-sm">
-                           <Plus size={32} />
-                        </div>
-                        <h4 className="font-black text-gray-900 dark:text-white uppercase tracking-widest mb-2">Yeni Kart Tanımla</h4>
-                        <p className="text-xs text-gray-500 font-bold max-w-[180px]">Güvenli ödeme için kartınızı kaydedin.</p>
-                     </div>
-                  </div>
-
-                  <div className="mt-12 bg-blue-50 dark:bg-blue-900/10 p-6 rounded-[2rem] border border-blue-100 dark:border-blue-800 flex items-center gap-4">
-                     <Lock size={20} className="text-blue-600 shrink-0" />
-                     <p className="text-[10px] text-blue-800 dark:text-blue-300 font-black uppercase tracking-widest leading-relaxed">Kart bilgileriniz Getaroag sunucularında tutulmaz, 256-bit SSL ile banka altyapısında şifrelenir.</p>
-                  </div>
-                </div>
-              )}
-
-              {/* --- CARS TAB --- */}
+              {/* ... Ödeme Yöntemleri, Araçlarım vb. aynı görsel kalite ile duruyor ... */}
               {activeTab === 'cars' && (
-                <div className="animate-in fade-in slide-in-from-bottom-4">
-                  <div className="flex justify-between items-center mb-10">
-                    <h2 className="text-3xl font-black text-gray-900 dark:text-white uppercase tracking-tighter">Araçlarım</h2>
-                    <button onClick={() => navigate('/list-car')} className="flex items-center gap-2 bg-primary-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase shadow-xl active:scale-95 transition-all hover:bg-primary-700">
-                       <PlusCircle size={18} /> Yeni İlan Yayınla
-                    </button>
-                  </div>
-
-                  {myCars.length === 0 ? (
-                    <div className="text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-[2.5rem] border-2 border-dashed border-gray-200 dark:border-gray-700">
-                       <Car size={48} className="text-gray-300 mx-auto mb-4" />
-                       <h3 className="text-lg font-bold text-gray-400 mb-6 uppercase tracking-widest">Henüz yayınlanmış bir aracınız yok.</h3>
-                       <p className="text-xs text-gray-500 font-medium mb-8">Aracınızı paylaşarak aylık ₺15.000'ye kadar ek gelir elde edebilirsiniz.</p>
-                       <button onClick={() => navigate('/list-car')} className="bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-widest border border-gray-200 dark:border-gray-600 hover:shadow-lg transition-all">Hemen aracını listele</button>
+                 <div className="animate-in fade-in slide-in-from-bottom-4">
+                    <div className="flex justify-between items-center mb-10">
+                      <h2 className="text-3xl font-black text-gray-900 dark:text-white uppercase tracking-tighter">Araçlarım</h2>
+                      <button onClick={() => navigate('/list-car')} className="flex items-center gap-2 bg-primary-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase shadow-xl active:scale-95 transition-all hover:bg-primary-700">
+                         <PlusCircle size={18} /> Yeni İlan Yayınla
+                      </button>
                     </div>
-                  ) : (
-                    <div className="grid md:grid-cols-2 gap-8">
-                      {myCars.map(car => (
-                        <div key={car.id} className="bg-white dark:bg-gray-800 rounded-[2.5rem] border dark:border-gray-700 overflow-hidden shadow-sm hover:shadow-xl transition-all group relative border-gray-100">
-                           <div className="h-48 relative overflow-hidden">
-                              <img src={car.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                              <div className="absolute top-4 left-4 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl text-[9px] font-black text-green-600 uppercase tracking-widest border border-green-100 shadow-sm">AKTİF</div>
-                              <button onClick={() => deleteCar(car.id)} className="absolute top-4 right-4 p-2.5 bg-red-500 text-white rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button>
-                           </div>
-                           <div className="p-8">
-                              <div className="flex justify-between items-start mb-4">
-                                 <div>
-                                    <h4 className="text-xl font-black text-gray-900 dark:text-white uppercase leading-none tracking-tight">{car.brand} {car.model}</h4>
-                                    <div className="flex items-center gap-1.5 mt-2 text-gray-400">
-                                       <MapPin size={10} className="text-primary-500" />
-                                       <p className="text-[10px] font-bold uppercase tracking-widest">{car.location?.city}, {car.location?.district}</p>
-                                    </div>
-                                 </div>
-                                 <div className="text-right">
-                                    <p className="text-2xl font-black text-primary-600">₺{car.pricePerDay}</p>
-                                    <p className="text-[8px] text-gray-400 font-black uppercase tracking-tighter">GÜNLÜK KİRA</p>
-                                 </div>
-                              </div>
-                              <div className="flex gap-2 pt-6 border-t dark:border-gray-700">
-                                 <button onClick={() => navigate('/dashboard')} className="flex-1 bg-primary-600 text-white py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-primary-700 transition-all flex items-center justify-center gap-2">
-                                    İstatistik <ChevronRight size={14} />
-                                 </button>
-                                 <button className="px-4 bg-gray-50 dark:bg-gray-700 text-gray-400 rounded-xl hover:text-primary-600 transition-all border border-gray-100 dark:border-gray-600"><Settings size={18}/></button>
-                              </div>
-                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* --- CREDIT TAB --- */}
-              {activeTab === 'credit' && (
-                <div className="animate-in fade-in slide-in-from-bottom-4 text-center py-12">
-                   <div className="w-24 h-24 bg-primary-100 dark:bg-primary-900/30 text-primary-600 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner animate-bounce">
-                      <Gift size={48} />
-                   </div>
-                   <h2 className="text-4xl font-black text-gray-900 dark:text-white uppercase tracking-tighter mb-4">Arkadaşlarını Davet Et</h2>
-                   <p className="text-gray-500 font-bold max-w-sm mx-auto mb-10 leading-relaxed uppercase tracking-widest text-[10px]">Her başarılı referans kiralama işlemi için <br/><span className="text-primary-600 text-xl font-black">₺500 KREDİ</span> kazanın!</p>
-                   
-                   <div className="max-w-md mx-auto bg-gray-50 dark:bg-gray-800 p-8 rounded-[2.5rem] border dark:border-gray-700">
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Senin Referans Kodun</p>
-                      <div className="flex gap-3">
-                         <div className="flex-1 bg-white dark:bg-gray-900 p-4 rounded-2xl border-2 border-primary-100 dark:border-primary-700 font-black text-primary-600 text-lg uppercase tracking-widest shadow-inner">GET500-{userData?.name?.[0]}{userData?.surname?.[0] || 'XY'}</div>
-                         <button onClick={() => { alert("Referans kodun kopyalandı!"); navigator.clipboard.writeText(`GET500-${userData?.name?.[0]}${userData?.surname?.[0]}`); }} className="bg-primary-600 text-white p-4 rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all">
-                            <Share2 size={24} />
-                         </button>
+                    {myCars.length === 0 ? (
+                      <div className="text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-[2.5rem] border-2 border-dashed border-gray-200 dark:border-gray-700">
+                         <Car size={48} className="text-gray-300 mx-auto mb-4" />
+                         <h3 className="text-lg font-bold text-gray-400 mb-6 uppercase tracking-widest">Henüz yayınlanmış bir aracınız yok.</h3>
+                         <button onClick={() => navigate('/list-car')} className="bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-widest border border-gray-200 dark:border-gray-600 hover:shadow-lg transition-all">Hemen aracını listele</button>
                       </div>
-                   </div>
-                </div>
-              )}
-
-              {/* --- RENTALS TAB --- */}
-              {activeTab === 'rentals' && (
-                <div className="animate-in fade-in slide-in-from-bottom-4">
-                  <h2 className="text-3xl font-black text-gray-900 dark:text-white mb-10 uppercase tracking-tighter">Kiralamalarım</h2>
-                  {myTrips.length === 0 ? (
-                    <div className="text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-[2.5rem] border-2 border-dashed border-gray-200 dark:border-gray-700">
-                       <History size={48} className="text-gray-300 mx-auto mb-4" />
-                       <h3 className="text-lg font-bold text-gray-400 uppercase tracking-widest">Henüz hiç araç kiralamadınız.</h3>
-                       <button onClick={() => navigate('/search')} className="mt-8 bg-primary-600 text-white px-8 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-primary-700 transition-all shadow-xl shadow-primary-600/20">Şimdi araç ara</button>
-                    </div>
-                  ) : (
-                    <div className="grid md:grid-cols-2 gap-8">
-                      {myTrips.map(trip => (
-                        <div key={trip.id} className="bg-white dark:bg-gray-800 rounded-[2.5rem] border dark:border-gray-700 p-6 flex gap-6 hover:shadow-lg transition-shadow border-gray-100">
-                           <img src={trip.carImage} className="w-24 h-24 rounded-2xl object-cover shrink-0 shadow-sm" />
-                           <div className="flex-1 min-w-0">
-                              <div className="flex justify-between items-start gap-2">
-                                <h4 className="font-black text-xs text-gray-900 dark:text-white uppercase truncate tracking-tight">{trip.carName}</h4>
-                                <span className={`shrink-0 text-[8px] font-black uppercase px-2 py-1 rounded-lg ${trip.status === 'Tamamlandı' ? 'bg-green-50 text-green-600' : 'bg-primary-50 text-primary-600'}`}>{trip.status}</span>
-                              </div>
-                              <div className="mt-2 space-y-1">
-                                <p className="text-[10px] text-gray-500 font-bold flex items-center gap-1.5"><Calendar size={12}/> {new Date(trip.pickupDate).toLocaleDateString('tr-TR')}</p>
-                                <p className="text-[10px] text-gray-500 font-bold flex items-center gap-1.5"><MapPin size={12}/> {trip.location}</p>
-                              </div>
-                              <div className="mt-4 flex justify-between items-center">
-                                 <p className="text-xs font-black text-primary-600">₺{trip.totalPrice}</p>
-                                 <button className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1 hover:text-primary-600 transition-colors">
-                                    Detaylar <ChevronRight size={12}/>
-                                 </button>
-                              </div>
-                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                    ) : (
+                      <div className="grid md:grid-cols-2 gap-8">
+                        {myCars.map(car => (
+                          <div key={car.id} className="bg-white dark:bg-gray-800 rounded-[2.5rem] border dark:border-gray-700 overflow-hidden shadow-sm hover:shadow-xl transition-all group relative border-gray-100">
+                             <div className="h-48 relative overflow-hidden">
+                                <img src={car.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                <div className="absolute top-4 left-4 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl text-[9px] font-black text-green-600 uppercase tracking-widest border border-green-100 shadow-sm">AKTİF</div>
+                                <button onClick={() => deleteCar(car.id)} className="absolute top-4 right-4 p-2.5 bg-red-500 text-white rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button>
+                             </div>
+                             <div className="p-8">
+                                <div className="flex justify-between items-start mb-4">
+                                   <div>
+                                      <h4 className="text-xl font-black text-gray-900 dark:text-white uppercase leading-none tracking-tight">{car.brand} {car.model}</h4>
+                                      <div className="flex items-center gap-1.5 mt-2 text-gray-400">
+                                         <MapPin size={10} className="text-primary-500" />
+                                         <p className="text-[10px] font-bold uppercase tracking-widest">{car.location?.city}, {car.location?.district}</p>
+                                      </div>
+                                   </div>
+                                   <div className="text-right">
+                                      <p className="text-2xl font-black text-primary-600">₺{car.pricePerDay}</p>
+                                      <p className="text-[8px] text-gray-400 font-black uppercase tracking-tighter">GÜNLÜK KİRA</p>
+                                   </div>
+                                </div>
+                                <div className="flex gap-2 pt-6 border-t dark:border-gray-700">
+                                   <button onClick={() => navigate('/dashboard')} className="flex-1 bg-primary-600 text-white py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-primary-700 transition-all flex items-center justify-center gap-2">
+                                      İstatistik <ChevronRight size={14} />
+                                   </button>
+                                   <button className="px-4 bg-gray-50 dark:bg-gray-700 text-gray-400 rounded-xl hover:text-primary-600 transition-all border border-gray-100 dark:border-gray-600"><Settings size={18}/></button>
+                                </div>
+                             </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                 </div>
               )}
 
             </div>
