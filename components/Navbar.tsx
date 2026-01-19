@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Car, UserCircle, LogOut, Sun, Moon, LogIn, Search, Plus, Heart, Home, Bell, X, Info, CheckCircle, Clock, LayoutDashboard, MessageSquare, ChevronDown, CreditCard, ShieldCheck, Gift } from 'lucide-react';
-import { checkAuthStatus } from '../services/firebase';
+import { checkAuthStatus, dbService } from '../services/firebase';
 import { useTheme } from '../context/ThemeContext';
 
 const MobileBottomNav = () => {
@@ -56,18 +56,22 @@ const Navbar = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
 
-  const loadProfile = () => {
-    const profile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-    if (profile.name) setUser(profile);
+  const loadData = () => {
+    const profile = dbService.getProfile();
+    if (profile) setUser(profile);
+    
+    const notifs = dbService.getNotifications();
+    const unread = notifs.filter((n: any) => !n.read).length;
+    setUnreadCount(unread);
   };
 
   useEffect(() => {
-    loadProfile();
+    loadData();
     
     const handleClickOutside = (event: MouseEvent) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
@@ -79,11 +83,11 @@ const Navbar = () => {
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    window.addEventListener('storage', loadProfile);
+    window.addEventListener('storage', loadData);
     
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      window.removeEventListener('storage', loadProfile);
+      window.removeEventListener('storage', loadData);
     };
   }, []);
 
@@ -120,8 +124,13 @@ const Navbar = () => {
                   </Link>
                   
                   <div className="relative" ref={notificationRef}>
-                    <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 rounded-full relative">
+                    <button onClick={() => navigate('/profile?tab=notifications')} className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 rounded-full relative transition-all active:scale-90">
                       <Bell size={20} />
+                      {unreadCount > 0 && (
+                        <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-primary-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white dark:border-gray-900 animate-in zoom-in">
+                          {unreadCount}
+                        </span>
+                      )}
                     </button>
                   </div>
 
@@ -169,7 +178,6 @@ const Navbar = () => {
                               <ShieldCheck size={18} className={user?.isVerified ? "text-green-500" : "text-gray-400"} />
                               <span className="text-sm font-bold text-gray-700 dark:text-gray-200">{user?.isVerified ? "Hesabın Doğrulandı" : "Profilini Doğrula"}</span>
                            </button>
-                           {/* ... diğer menü elemanları aynı kalacak ... */}
                            <button onClick={() => { navigate('/profile?tab=rentals'); setShowProfileMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                               <Clock size={18} className="text-gray-400" />
                               <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Kiralamalarım</span>
@@ -202,7 +210,6 @@ const Navbar = () => {
         </div>
       </nav>
 
-      {/* MobileBottomNav aynen devam edecek */}
       <div className="md:hidden sticky top-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md px-4 py-3 flex justify-between items-center shadow-sm transition-colors duration-300">
          <Link to="/" className="flex items-center space-x-2">
             <div className="bg-primary-600 text-white p-1.5 rounded-lg">

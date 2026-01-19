@@ -1,6 +1,5 @@
 
-// Bu dosya ileride gerçek Firebase API anahtarlarınla güncellenmek üzere hazırlandı.
-// Şimdilik uygulamanın "Canlı" gibi davranması için bir Veri Servisi (MockDB) görevi görüyor.
+// Bu dosya uygulamanın "Canlı" gibi davranması için bir Veri Servisi (MockDB) görevi görüyor.
 
 export const checkAuthStatus = (): boolean => {
   return localStorage.getItem('isLoggedIn') === 'true';
@@ -17,7 +16,7 @@ export const dbService = {
   // Profil Güncelle
   updateProfile: (data: any) => {
     localStorage.setItem('userProfile', JSON.stringify(data));
-    window.dispatchEvent(new Event('storage')); // Diğer bileşenlere (Navbar gibi) haber ver
+    window.dispatchEvent(new Event('storage')); 
   },
 
   // Araçları Yönet
@@ -29,6 +28,17 @@ export const dbService = {
     const cars = dbService.getCars();
     const updated = [...cars, car];
     localStorage.setItem('myCars', JSON.stringify(updated));
+    
+    // Araç listelendiğinde bildirim ekle
+    dbService.addNotification({
+      id: Date.now(),
+      title: 'İLAN YAYINLANDI!',
+      message: `${car.brand} ${car.model} başarıyla listelendi. Artık kiracılar aracınızı görebilir.`,
+      time: 'Az önce',
+      read: false,
+      type: 'success'
+    });
+
     window.dispatchEvent(new Event('storage'));
   },
 
@@ -37,31 +47,38 @@ export const dbService = {
     return JSON.parse(localStorage.getItem('myTrips') || '[]');
   },
 
-  // Ödeme Yöntemlerini Yönet
+  // Ödeme Yöntemleri
   getPaymentMethods: () => {
     const methods = localStorage.getItem('paymentMethods');
     if (methods) return JSON.parse(methods);
-    
-    // Varsayılan bir kart (Demo için)
     const defaultCard = [{ id: 1, last4: '4242', brand: 'VISA', exp: '12/28', isDefault: true }];
     localStorage.setItem('paymentMethods', JSON.stringify(defaultCard));
     return defaultCard;
   },
 
-  addPaymentMethod: (card: any) => {
-    const methods = dbService.getPaymentMethods();
-    localStorage.setItem('paymentMethods', JSON.stringify([...methods, card]));
-    window.dispatchEvent(new Event('storage'));
-  },
-
-  // Bildirimleri Yönet
+  // BİLDİRİM SİSTEMİ ÇEKİRDEĞİ
   getNotifications: () => {
     return JSON.parse(localStorage.getItem('notifications') || '[]');
   },
 
   addNotification: (notif: any) => {
     const list = dbService.getNotifications();
-    localStorage.setItem('notifications', JSON.stringify([notif, ...list]));
+    const updated = [notif, ...list].slice(0, 20); // Son 20 bildirimi tut
+    localStorage.setItem('notifications', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage')); // UI'ları tetikle
+  },
+
+  markNotificationRead: (id: number) => {
+    const list = dbService.getNotifications();
+    const updated = list.map((n: any) => n.id === id ? { ...n, read: true } : n);
+    localStorage.setItem('notifications', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+  },
+
+  markAllNotificationsRead: () => {
+    const list = dbService.getNotifications();
+    const updated = list.map((n: any) => ({ ...n, read: true }));
+    localStorage.setItem('notifications', JSON.stringify(updated));
     window.dispatchEvent(new Event('storage'));
   }
 };
