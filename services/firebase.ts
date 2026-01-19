@@ -32,6 +32,28 @@ export const dbService = {
     window.dispatchEvent(new Event('storage'));
   },
 
+  // Kiralamaları (Yolculukları) Yönet
+  getTrips: () => {
+    return JSON.parse(localStorage.getItem('myTrips') || '[]');
+  },
+
+  // Ödeme Yöntemlerini Yönet
+  getPaymentMethods: () => {
+    const methods = localStorage.getItem('paymentMethods');
+    if (methods) return JSON.parse(methods);
+    
+    // Varsayılan bir kart (Demo için)
+    const defaultCard = [{ id: 1, last4: '4242', brand: 'VISA', exp: '12/28', isDefault: true }];
+    localStorage.setItem('paymentMethods', JSON.stringify(defaultCard));
+    return defaultCard;
+  },
+
+  addPaymentMethod: (card: any) => {
+    const methods = dbService.getPaymentMethods();
+    localStorage.setItem('paymentMethods', JSON.stringify([...methods, card]));
+    window.dispatchEvent(new Event('storage'));
+  },
+
   // Bildirimleri Yönet
   getNotifications: () => {
     return JSON.parse(localStorage.getItem('notifications') || '[]');
