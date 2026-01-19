@@ -3,15 +3,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import Navbar from '../components/Navbar';
 import { 
   PlusCircle, 
-  LogOut, 
   Calendar, 
-  MapPin, 
-  Mail, 
-  ChevronRight, 
-  Star,
   History,
   ShieldCheck,
-  X,
   Search,
   MessageSquare,
   Car,
@@ -21,10 +15,7 @@ import {
   User,
   Bell,
   Gift,
-  Phone,
-  Globe,
   Upload,
-  ArrowLeft,
   Info,
   Check,
   Settings,
@@ -32,7 +23,11 @@ import {
   Trash2,
   Plus,
   Lock,
-  Share2
+  Share2,
+  ChevronRight,
+  MapPin,
+  Clock,
+  ExternalLink
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { checkAuthStatus } from '../services/firebase';
@@ -72,15 +67,17 @@ const ProfilePage = () => {
     const loadData = () => {
       setMyTrips(JSON.parse(localStorage.getItem('myTrips') || '[]'));
       setMyCars(JSON.parse(localStorage.getItem('myCars') || '[]'));
-      // Fix: Argument of type 'string | { id: number; ... }[]' is not assignable to parameter of type 'string'.
+      
       const storedNotifications = localStorage.getItem('notifications');
       if (storedNotifications) {
         setNotifications(JSON.parse(storedNotifications));
       } else {
-        setNotifications([
+        const defaultNotifs = [
           { id: 1, title: 'Hoş Geldiniz!', message: 'Getaroag ailesine katıldığınız için mutluyuz. Profilinizi tamamlayarak araç kiralamaya başlayabilirsiniz.', time: '1 gün önce', read: true, type: 'info' },
           { id: 2, title: 'Güvenlik İpucu', message: 'Hesap güvenliğiniz için şifrenizi kimseyle paylaşmayın.', time: '2 saat önce', read: false, type: 'warning' }
-        ]);
+        ];
+        setNotifications(defaultNotifs);
+        localStorage.setItem('notifications', JSON.stringify(defaultNotifs));
       }
     };
 
@@ -315,7 +312,7 @@ const ProfilePage = () => {
 
                   <div className="space-y-4">
                     {notifications.length === 0 ? (
-                      <div className="text-center py-20 bg-gray-50 rounded-[2rem] border-2 border-dashed border-gray-100">
+                      <div className="text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-[2rem] border-2 border-dashed border-gray-100 dark:border-gray-700">
                          <Bell size={48} className="text-gray-300 mx-auto mb-4" />
                          <p className="text-sm font-bold text-gray-400">Henüz bildiriminiz bulunmuyor.</p>
                       </div>
@@ -351,29 +348,32 @@ const ProfilePage = () => {
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-8">
-                     <div className="bg-gradient-to-br from-primary-600 to-purple-700 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden group">
+                     <div className="bg-gradient-to-br from-primary-600 to-purple-700 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden group min-h-[220px]">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
                         <div className="flex justify-between items-start mb-12 relative z-10">
-                           <CreditCard size={32} />
-                           <span className="text-[10px] font-black uppercase tracking-widest bg-white/20 px-3 py-1.5 rounded-xl">Varsayılan</span>
+                           <div className="flex items-center gap-2">
+                              <CreditCard size={32} />
+                              <span className="text-[10px] font-black uppercase tracking-widest opacity-60">VISA</span>
+                           </div>
+                           <span className="text-[10px] font-black uppercase tracking-widest bg-white/20 px-3 py-1.5 rounded-xl border border-white/20">Varsayılan</span>
                         </div>
                         <div className="relative z-10">
                            <p className="text-lg font-mono tracking-widest mb-6">**** **** **** 4242</p>
                            <div className="flex justify-between items-end">
                               <div>
                                  <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">Kart Sahibi</p>
-                                 <p className="font-bold uppercase">{userData?.name} {userData?.surname}</p>
+                                 <p className="font-bold uppercase tracking-tight">{userData?.name || 'AD'} {userData?.surname || 'SOYAD'}</p>
                               </div>
                               <div className="text-right">
-                                 <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">Son Kullanma</p>
+                                 <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">SKT</p>
                                  <p className="font-bold">12/28</p>
                               </div>
                            </div>
                         </div>
                      </div>
 
-                     <div className="bg-gray-50 dark:bg-gray-800 p-8 rounded-[2.5rem] border-2 border-dashed border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center text-center group cursor-pointer hover:border-primary-400 transition-all">
-                        <div className="w-16 h-16 bg-white dark:bg-gray-700 rounded-full flex items-center justify-center text-gray-400 mb-4 group-hover:scale-110 transition-transform">
+                     <div className="bg-gray-50 dark:bg-gray-800 p-8 rounded-[2.5rem] border-2 border-dashed border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center text-center group cursor-pointer hover:border-primary-400 transition-all min-h-[220px]">
+                        <div className="w-16 h-16 bg-white dark:bg-gray-700 rounded-full flex items-center justify-center text-gray-400 mb-4 group-hover:scale-110 transition-transform shadow-sm">
                            <Plus size={32} />
                         </div>
                         <h4 className="font-black text-gray-900 dark:text-white uppercase tracking-widest mb-2">Yeni Kart Tanımla</h4>
@@ -382,8 +382,8 @@ const ProfilePage = () => {
                   </div>
 
                   <div className="mt-12 bg-blue-50 dark:bg-blue-900/10 p-6 rounded-[2rem] border border-blue-100 dark:border-blue-800 flex items-center gap-4">
-                     <Lock size={20} className="text-blue-600" />
-                     <p className="text-[10px] text-blue-800 dark:text-blue-300 font-bold uppercase tracking-widest leading-relaxed">Kart bilgileriniz Getaroag sunucularında tutulmaz, 256-bit SSL ile banka altyapısında şifrelenir.</p>
+                     <Lock size={20} className="text-blue-600 shrink-0" />
+                     <p className="text-[10px] text-blue-800 dark:text-blue-300 font-black uppercase tracking-widest leading-relaxed">Kart bilgileriniz Getaroag sunucularında tutulmaz, 256-bit SSL ile banka altyapısında şifrelenir.</p>
                   </div>
                 </div>
               )}
@@ -393,7 +393,7 @@ const ProfilePage = () => {
                 <div className="animate-in fade-in slide-in-from-bottom-4">
                   <div className="flex justify-between items-center mb-10">
                     <h2 className="text-3xl font-black text-gray-900 dark:text-white uppercase tracking-tighter">Araçlarım</h2>
-                    <button onClick={() => navigate('/list-car')} className="flex items-center gap-2 bg-primary-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase shadow-xl active:scale-95 transition-all">
+                    <button onClick={() => navigate('/list-car')} className="flex items-center gap-2 bg-primary-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase shadow-xl active:scale-95 transition-all hover:bg-primary-700">
                        <PlusCircle size={18} /> Yeni İlan Yayınla
                     </button>
                   </div>
@@ -401,32 +401,38 @@ const ProfilePage = () => {
                   {myCars.length === 0 ? (
                     <div className="text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-[2.5rem] border-2 border-dashed border-gray-200 dark:border-gray-700">
                        <Car size={48} className="text-gray-300 mx-auto mb-4" />
-                       <h3 className="text-lg font-bold text-gray-400 mb-6">Henüz yayınlanmış bir aracınız yok.</h3>
-                       <button onClick={() => navigate('/list-car')} className="text-primary-600 font-black uppercase text-xs tracking-widest hover:underline">Hemen aracını listele ve kazanmaya başla</button>
+                       <h3 className="text-lg font-bold text-gray-400 mb-6 uppercase tracking-widest">Henüz yayınlanmış bir aracınız yok.</h3>
+                       <p className="text-xs text-gray-500 font-medium mb-8">Aracınızı paylaşarak aylık ₺15.000'ye kadar ek gelir elde edebilirsiniz.</p>
+                       <button onClick={() => navigate('/list-car')} className="bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-widest border border-gray-200 dark:border-gray-600 hover:shadow-lg transition-all">Hemen aracını listele</button>
                     </div>
                   ) : (
                     <div className="grid md:grid-cols-2 gap-8">
                       {myCars.map(car => (
-                        <div key={car.id} className="bg-white dark:bg-gray-800 rounded-[2.5rem] border dark:border-gray-700 overflow-hidden shadow-sm hover:shadow-xl transition-all group relative">
+                        <div key={car.id} className="bg-white dark:bg-gray-800 rounded-[2.5rem] border dark:border-gray-700 overflow-hidden shadow-sm hover:shadow-xl transition-all group relative border-gray-100">
                            <div className="h-48 relative overflow-hidden">
                               <img src={car.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                               <div className="absolute top-4 left-4 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl text-[9px] font-black text-green-600 uppercase tracking-widest border border-green-100 shadow-sm">AKTİF</div>
-                              <button onClick={() => deleteCar(car.id)} className="absolute top-4 right-4 p-2 bg-red-500 text-white rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button>
+                              <button onClick={() => deleteCar(car.id)} className="absolute top-4 right-4 p-2.5 bg-red-500 text-white rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button>
                            </div>
                            <div className="p-8">
                               <div className="flex justify-between items-start mb-4">
                                  <div>
-                                    <h4 className="text-xl font-black text-gray-900 dark:text-white uppercase leading-none">{car.brand} {car.model}</h4>
-                                    <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase tracking-widest">{car.location.city}, {car.location.district}</p>
+                                    <h4 className="text-xl font-black text-gray-900 dark:text-white uppercase leading-none tracking-tight">{car.brand} {car.model}</h4>
+                                    <div className="flex items-center gap-1.5 mt-2 text-gray-400">
+                                       <MapPin size={10} className="text-primary-500" />
+                                       <p className="text-[10px] font-bold uppercase tracking-widest">{car.location?.city}, {car.location?.district}</p>
+                                    </div>
                                  </div>
                                  <div className="text-right">
                                     <p className="text-2xl font-black text-primary-600">₺{car.pricePerDay}</p>
-                                    <p className="text-[8px] text-gray-400 font-black uppercase tracking-tighter">GÜNLÜK KAZANÇ</p>
+                                    <p className="text-[8px] text-gray-400 font-black uppercase tracking-tighter">GÜNLÜK KİRA</p>
                                  </div>
                               </div>
                               <div className="flex gap-2 pt-6 border-t dark:border-gray-700">
-                                 <button onClick={() => navigate('/dashboard')} className="flex-1 bg-primary-600 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-primary-700 transition-all">Panel Gör</button>
-                                 <button className="px-4 bg-gray-50 dark:bg-gray-700 text-gray-400 rounded-xl hover:text-primary-600 transition-all"><Settings size={18}/></button>
+                                 <button onClick={() => navigate('/dashboard')} className="flex-1 bg-primary-600 text-white py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-primary-700 transition-all flex items-center justify-center gap-2">
+                                    İstatistik <ChevronRight size={14} />
+                                 </button>
+                                 <button className="px-4 bg-gray-50 dark:bg-gray-700 text-gray-400 rounded-xl hover:text-primary-600 transition-all border border-gray-100 dark:border-gray-600"><Settings size={18}/></button>
                               </div>
                            </div>
                         </div>
@@ -438,18 +444,20 @@ const ProfilePage = () => {
 
               {/* --- CREDIT TAB --- */}
               {activeTab === 'credit' && (
-                <div className="animate-in fade-in slide-in-from-bottom-4 text-center py-10">
+                <div className="animate-in fade-in slide-in-from-bottom-4 text-center py-12">
                    <div className="w-24 h-24 bg-primary-100 dark:bg-primary-900/30 text-primary-600 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner animate-bounce">
                       <Gift size={48} />
                    </div>
                    <h2 className="text-4xl font-black text-gray-900 dark:text-white uppercase tracking-tighter mb-4">Arkadaşlarını Davet Et</h2>
                    <p className="text-gray-500 font-bold max-w-sm mx-auto mb-10 leading-relaxed uppercase tracking-widest text-[10px]">Her başarılı referans kiralama işlemi için <br/><span className="text-primary-600 text-xl font-black">₺500 KREDİ</span> kazanın!</p>
                    
-                   <div className="max-w-md mx-auto bg-gray-50 dark:bg-gray-800 p-6 rounded-[2.5rem] border dark:border-gray-700">
+                   <div className="max-w-md mx-auto bg-gray-50 dark:bg-gray-800 p-8 rounded-[2.5rem] border dark:border-gray-700">
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Senin Referans Kodun</p>
                       <div className="flex gap-3">
-                         <div className="flex-1 bg-white dark:bg-gray-900 p-4 rounded-2xl border-2 border-primary-100 dark:border-primary-700 font-black text-primary-600 text-lg uppercase tracking-widest">GET500-{userData?.name?.[0]}{userData?.surname?.[0]}</div>
-                         <button className="bg-primary-600 text-white p-4 rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all"><Share2 size={24} /></button>
+                         <div className="flex-1 bg-white dark:bg-gray-900 p-4 rounded-2xl border-2 border-primary-100 dark:border-primary-700 font-black text-primary-600 text-lg uppercase tracking-widest shadow-inner">GET500-{userData?.name?.[0]}{userData?.surname?.[0] || 'XY'}</div>
+                         <button onClick={() => { alert("Referans kodun kopyalandı!"); navigator.clipboard.writeText(`GET500-${userData?.name?.[0]}${userData?.surname?.[0]}`); }} className="bg-primary-600 text-white p-4 rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all">
+                            <Share2 size={24} />
+                         </button>
                       </div>
                    </div>
                 </div>
@@ -462,23 +470,28 @@ const ProfilePage = () => {
                   {myTrips.length === 0 ? (
                     <div className="text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-[2.5rem] border-2 border-dashed border-gray-200 dark:border-gray-700">
                        <History size={48} className="text-gray-300 mx-auto mb-4" />
-                       <h3 className="text-lg font-bold text-gray-400">Henüz hiç araç kiralamadınız.</h3>
-                       <button onClick={() => navigate('/search')} className="mt-6 text-primary-600 font-black uppercase tracking-widest text-xs hover:underline">Şimdi araç ara</button>
+                       <h3 className="text-lg font-bold text-gray-400 uppercase tracking-widest">Henüz hiç araç kiralamadınız.</h3>
+                       <button onClick={() => navigate('/search')} className="mt-8 bg-primary-600 text-white px-8 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-primary-700 transition-all shadow-xl shadow-primary-600/20">Şimdi araç ara</button>
                     </div>
                   ) : (
-                    <div className="grid md:grid-cols-2 gap-6">
+                    <div className="grid md:grid-cols-2 gap-8">
                       {myTrips.map(trip => (
-                        <div key={trip.id} className="bg-white dark:bg-gray-800 rounded-[2rem] border dark:border-gray-700 p-6 flex gap-4 hover:shadow-lg transition-shadow">
-                           <img src={trip.carImage} className="w-24 h-24 rounded-2xl object-cover" />
-                           <div className="flex-1">
-                              <div className="flex justify-between items-start">
-                                <h4 className="font-black text-xs text-gray-900 dark:text-white uppercase truncate max-w-[120px]">{trip.carName}</h4>
-                                <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${trip.status === 'Tamamlandı' ? 'bg-green-50 text-green-600' : 'bg-primary-50 text-primary-600'}`}>{trip.status}</span>
+                        <div key={trip.id} className="bg-white dark:bg-gray-800 rounded-[2.5rem] border dark:border-gray-700 p-6 flex gap-6 hover:shadow-lg transition-shadow border-gray-100">
+                           <img src={trip.carImage} className="w-24 h-24 rounded-2xl object-cover shrink-0 shadow-sm" />
+                           <div className="flex-1 min-w-0">
+                              <div className="flex justify-between items-start gap-2">
+                                <h4 className="font-black text-xs text-gray-900 dark:text-white uppercase truncate tracking-tight">{trip.carName}</h4>
+                                <span className={`shrink-0 text-[8px] font-black uppercase px-2 py-1 rounded-lg ${trip.status === 'Tamamlandı' ? 'bg-green-50 text-green-600' : 'bg-primary-50 text-primary-600'}`}>{trip.status}</span>
                               </div>
-                              <p className="text-[10px] text-gray-500 font-bold mt-1 flex items-center gap-1"><Calendar size={12}/> {new Date(trip.pickupDate).toLocaleDateString('tr-TR')}</p>
+                              <div className="mt-2 space-y-1">
+                                <p className="text-[10px] text-gray-500 font-bold flex items-center gap-1.5"><Calendar size={12}/> {new Date(trip.pickupDate).toLocaleDateString('tr-TR')}</p>
+                                <p className="text-[10px] text-gray-500 font-bold flex items-center gap-1.5"><MapPin size={12}/> {trip.location}</p>
+                              </div>
                               <div className="mt-4 flex justify-between items-center">
                                  <p className="text-xs font-black text-primary-600">₺{trip.totalPrice}</p>
-                                 <button className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1 hover:text-primary-600">Detaylar <ChevronRight size={12}/></button>
+                                 <button className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1 hover:text-primary-600 transition-colors">
+                                    Detaylar <ChevronRight size={12}/>
+                                 </button>
                               </div>
                            </div>
                         </div>
