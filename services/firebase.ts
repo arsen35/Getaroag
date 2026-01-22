@@ -1,50 +1,38 @@
 
-// Bu dosya uygulamanın "Canlı" gibi davranması için bir Veri Servisi (MockDB) görevi görüyor.
-
 export const checkAuthStatus = (): boolean => {
   return localStorage.getItem('isLoggedIn') === 'true';
 };
 
-// Veri Yönetimi için Merkezi Servis
 export const dbService = {
-  // Profil Getir
   getProfile: () => {
     const data = localStorage.getItem('userProfile');
-    return data ? JSON.parse(data) : null;
+    return data ? JSON.parse(data) : { name: "Kullanıcı", surname: "", isVerified: false };
   },
   
-  // Profil Güncelle
   updateProfile: (data: any) => {
     localStorage.setItem('userProfile', JSON.stringify(data));
     window.dispatchEvent(new Event('storage')); 
   },
 
-  // Araçları Yönet (Local Storage'dan temiz okuma)
   getCars: () => {
     try {
       const cars = localStorage.getItem('myCars');
-      const parsed = cars ? JSON.parse(cars) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      return [];
-    }
+      return cars ? JSON.parse(cars) : [];
+    } catch (e) { return []; }
   },
   
   saveCar: (car: any) => {
     const cars = dbService.getCars();
-    // İlan varsayılan olarak 'Active' başlar
-    const updated = [...cars, { ...car, status: car.status || 'Active' }];
+    const updated = [...cars, { ...car, status: 'Active' }];
     localStorage.setItem('myCars', JSON.stringify(updated));
     window.dispatchEvent(new Event('storage'));
   },
 
-  // KESİN SİLME: ID tipini (String/Number) eşitleyerek hatayı önler
+  // KESİN SİLME: ID tipini eşitle ve listeyi temizle
   deleteCar: (id: number | string) => {
     const cars = dbService.getCars();
     const updated = cars.filter((c: any) => String(c.id) !== String(id));
     localStorage.setItem('myCars', JSON.stringify(updated));
-    
-    // Uygulamanın geri kalanına (Navbar, Search vb.) verinin değiştiğini haber ver
     window.dispatchEvent(new Event('storage'));
     return updated;
   },
@@ -57,13 +45,11 @@ export const dbService = {
     return updated;
   },
 
-  // İLAN DURAKLATMA / YAYINA ALMA (Toggle)
   toggleCarStatus: (id: number | string) => {
     const cars = dbService.getCars();
     const updated = cars.map((c: any) => {
       if (String(c.id) === String(id)) {
-        const newStatus = (c.status === 'Active' || !c.status) ? 'Paused' : 'Active';
-        return { ...c, status: newStatus };
+        return { ...c, status: c.status === 'Paused' ? 'Active' : 'Paused' };
       }
       return c;
     });
@@ -72,21 +58,32 @@ export const dbService = {
     return updated;
   },
 
-  // Diğer Servisler...
-  getTrips: () => JSON.parse(localStorage.getItem('myTrips') || '[]'),
-  getPaymentMethods: () => JSON.parse(localStorage.getItem('paymentMethods') || '[{"id":1,"last4":"4242","brand":"VISA","exp":"12/28","isDefault":true}]'),
-  getNotifications: () => JSON.parse(localStorage.getItem('notifications') || '[]'),
+  getTrips: () => {
+    const data = localStorage.getItem('myTrips');
+    return data ? JSON.parse(data) : [
+      { id: 1, carName: 'Tesla Model Y', carImage: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89?auto=format&fit=crop&w=400', status: 'Tamamlandı', date: '12 Haz 2024', price: 3200 },
+      { id: 2, carName: 'Fiat Egea', carImage: 'https://images.unsplash.com/photo-1503376763036-066120622c74?auto=format&fit=crop&w=400', status: 'Yaklaşan', date: '25 Tem 2024', price: 1100 }
+    ];
+  },
+
+  getPaymentMethods: () => {
+    const data = localStorage.getItem('paymentMethods');
+    return data ? JSON.parse(data) : [
+      { id: 1, last4: "4242", brand: "VISA", exp: "12/28", isDefault: true }
+    ];
+  },
+
+  getNotifications: () => {
+    const data = localStorage.getItem('notifications');
+    return data ? JSON.parse(data) : [
+      { id: 1, title: "Hoş Geldiniz!", message: "Getaroag ailesine katıldığınız için teşekkürler.", time: "2 gün önce", read: true, type: "info" },
+      { id: 2, title: "Yeni Mesaj", message: "Murat Aras kiralama için soru sordu.", time: "1 saat önce", read: false, type: "message" }
+    ];
+  },
 
   addNotification: (notif: any) => {
     const list = dbService.getNotifications();
     const updated = [notif, ...list].slice(0, 15);
-    localStorage.setItem('notifications', JSON.stringify(updated));
-    window.dispatchEvent(new Event('storage'));
-  },
-
-  markNotificationRead: (id: number) => {
-    const list = dbService.getNotifications();
-    const updated = list.map((n: any) => n.id === id ? { ...n, read: true } : n);
     localStorage.setItem('notifications', JSON.stringify(updated));
     window.dispatchEvent(new Event('storage'));
   }
