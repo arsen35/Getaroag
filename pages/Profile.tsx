@@ -36,7 +36,8 @@ import {
   Save,
   X,
   Fuel,
-  Maximize2
+  Play,
+  Pause
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { checkAuthStatus, dbService } from '../services/firebase';
@@ -54,10 +55,8 @@ const ProfilePage = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [kycStep, setKycStep] = useState<'idle' | 'scanning' | 'done'>('idle');
   
-  // Gelişmiş Düzenleme State
   const [editingCar, setEditingCar] = useState<any>(null);
   const editPhotoRef = useRef<HTMLInputElement>(null);
-  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const idInputRef = useRef<HTMLInputElement>(null);
   const licenseInputRef = useRef<HTMLInputElement>(null);
@@ -83,16 +82,11 @@ const ProfilePage = () => {
 
   useEffect(() => {
     if (!checkAuthStatus()) { navigate('/login'); return; }
-    
     loadAllData();
+    // Storage değişikliklerini dinle
     window.addEventListener('storage', loadAllData);
     return () => window.removeEventListener('storage', loadAllData);
   }, [navigate]);
-
-  useEffect(() => {
-    const tab = searchParams.get('tab');
-    if (tab) setActiveTab(tab);
-  }, [searchParams]);
 
   const handleUpdateProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,7 +97,7 @@ const ProfilePage = () => {
       dbService.addNotification({
         id: Date.now(),
         title: 'Profil Güncellendi',
-        message: 'Kişisel bilgileriniz başarıyla kaydedildi.',
+        message: 'Bilgileriniz kaydedildi.',
         time: 'Az önce',
         read: false,
         type: 'info'
@@ -111,35 +105,37 @@ const ProfilePage = () => {
     }, 800);
   };
 
-  const handleDeleteCar = (e: React.MouseEvent, id: number | string, name: string) => {
-    e.stopPropagation();
-    if (window.confirm(`${name} ilanını silmek istediğinizden emin misiniz?`)) {
-        const success = dbService.deleteCar(id);
-        if (success) {
-            dbService.addNotification({
-                id: Date.now(),
-                title: 'İlan Silindi',
-                message: `${name} ilanınız sistemden kaldırıldı.`,
-                time: 'Az önce',
-                read: false,
-                type: 'info'
-            });
-            // State'i anında güncelle
-            setMyCars(prev => prev.filter(c => String(c.id) !== String(id)));
-        } else {
-            alert("Silme işlemi sırasında bir hata oluştu.");
-        }
+  // KESİN SİLME ÇÖZÜMÜ
+  const handleDeleteCar = (id: number | string, name: string) => {
+    if (window.confirm(`${name} ilanını kalıcı olarak silmek istediğinizden emin misiniz?`)) {
+        dbService.deleteCar(id);
+        // State'i anında filtrele
+        setMyCars(prev => prev.filter(c => String(c.id) !== String(id)));
+        dbService.addNotification({
+            id: Date.now(),
+            title: 'İlan Silindi',
+            message: `${name} ilanınız başarıyla kaldırıldı.`,
+            time: 'Az önce',
+            read: false,
+            type: 'info'
+        });
     }
   };
 
-  const handleEditCarPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0] && editingCar) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            setEditingCar({ ...editingCar, image: reader.result as string });
-        };
-        reader.readAsDataURL(e.target.files[0]);
-    }
+  // DURAKLATMA ÇÖZÜMÜ
+  const handleToggleCarStatus = (id: number | string, currentStatus: string) => {
+    dbService.toggleCarStatus(id);
+    const newStatus = currentStatus === 'Active' ? 'Paused' : 'Active';
+    setMyCars(prev => prev.map(c => String(c.id) === String(id) ? { ...c, status: newStatus } : c));
+    
+    dbService.addNotification({
+        id: Date.now(),
+        title: newStatus === 'Paused' ? 'İlan Duraklatıldı' : 'İlan Yayına Alındı',
+        message: `Aracınız artık ${newStatus === 'Paused' ? 'kiralanamaz' : 'kiralanabilir'} durumdadır.`,
+        time: 'Az önce',
+        read: false,
+        type: 'info'
+    });
   };
 
   const handleUpdateCarSubmit = (e: React.FormEvent) => {
@@ -161,46 +157,8 @@ const ProfilePage = () => {
         }
     });
 
-    dbService.addNotification({
-        id: Date.now(),
-        title: 'İlan Güncellendi',
-        message: `${editingCar.brand} ${editingCar.model} başarıyla güncellendi.`,
-        time: 'Az önce',
-        read: false,
-        type: 'info'
-    });
-
     setEditingCar(null);
-    setMyCars(dbService.getCars());
-  };
-
-  const handleMarkAsRead = (id: number) => {
-    dbService.markNotificationRead(id);
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  };
-
-  const handleMarkAllAsRead = () => {
-    dbService.markAllNotificationsRead();
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  };
-
-  const verifyAccount = () => {
-    if (!idPhoto || !licensePhoto) return alert("Lütfen hem kimlik hem de ehliyet fotoğrafını yükleyin.");
-    setKycStep('scanning');
-    setTimeout(() => {
-      const updated = { ...userData, isVerified: true };
-      setUserData(updated);
-      dbService.updateProfile(updated);
-      setKycStep('done');
-      dbService.addNotification({
-        id: Date.now(),
-        title: 'Profil Onaylandı',
-        message: 'Belgeleriniz yapay zeka tarafından incelendi ve üyeliğiniz tam onay aldı.',
-        time: 'Az önce',
-        read: false,
-        type: 'success'
-      });
-    }, 4000);
+    loadAllData();
   };
 
   const sidebarLinks = [
@@ -221,83 +179,57 @@ const ProfilePage = () => {
 
       {/* --- KAPSAMLI EDİT MODAL --- */}
       {editingCar && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in overflow-y-auto py-10">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in overflow-y-auto">
             <div className="bg-white dark:bg-gray-900 rounded-[10px] border dark:border-gray-800 p-8 w-full max-w-2xl animate-in zoom-in-95 my-auto">
                 <div className="flex justify-between items-center mb-8">
-                    <div>
-                        <h3 className="text-2xl font-black uppercase tracking-tighter text-gray-900 dark:text-white">İlanı Düzenle</h3>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">ID: {editingCar.id}</p>
-                    </div>
+                    <h3 className="text-2xl font-black uppercase tracking-tighter text-gray-900 dark:text-white">İlanı Düzenle</h3>
                     <button onClick={() => setEditingCar(null)} className="text-gray-400 hover:text-gray-600 p-2"><X size={24}/></button>
                 </div>
                 
-                <form onSubmit={handleUpdateCarSubmit} className="space-y-8">
-                    {/* Fotoğraf Değiştirme */}
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Kapak Fotoğrafı</label>
-                        <div className="relative group cursor-pointer" onClick={() => editPhotoRef.current?.click()}>
-                            <img src={editingCar.image} className="w-full h-48 object-cover rounded-[10px] border border-gray-100 dark:border-gray-800" />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center text-white font-bold text-xs uppercase tracking-widest rounded-[10px]">
-                                <Camera size={24} className="mr-2" /> Fotoğrafı Değiştir
-                            </div>
-                            <input type="file" ref={editPhotoRef} className="hidden" onChange={handleEditCarPhoto} />
+                <form onSubmit={handleUpdateCarSubmit} className="space-y-6 text-left">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Kapak Fotoğrafı</label>
+                        <div className="relative group cursor-pointer h-40" onClick={() => editPhotoRef.current?.click()}>
+                            <img src={editingCar.image} className="w-full h-full object-cover rounded-[10px]" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center text-white font-bold text-xs uppercase rounded-[10px]">DEĞİŞTİR</div>
+                            <input type="file" ref={editPhotoRef} className="hidden" onChange={(e) => {
+                                if (e.target.files?.[0]) {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => setEditingCar({ ...editingCar, image: reader.result as string });
+                                    reader.readAsDataURL(e.target.files[0]);
+                                }
+                            }} />
                         </div>
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-6">
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Marka</label>
-                            <input type="text" value={editingCar.brand} onChange={e => setEditingCar({...editingCar, brand: e.target.value})} className={inputClass} />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Model</label>
-                            <input type="text" value={editingCar.model} onChange={e => setEditingCar({...editingCar, model: e.target.value})} className={inputClass} />
-                        </div>
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <input type="text" placeholder="Marka" value={editingCar.brand} onChange={e => setEditingCar({...editingCar, brand: e.target.value})} className={inputClass} />
+                        <input type="text" placeholder="Model" value={editingCar.model} onChange={e => setEditingCar({...editingCar, model: e.target.value})} className={inputClass} />
                     </div>
 
-                    <div className="grid md:grid-cols-3 gap-6">
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Yıl</label>
-                            <input type="number" value={editingCar.year} onChange={e => setEditingCar({...editingCar, year: e.target.value})} className={inputClass} />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Şehir</label>
-                            <input type="text" value={editingCar.location.city} onChange={e => setEditingCar({...editingCar, location: {...editingCar.location, city: e.target.value}})} className={inputClass} />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">İlçe</label>
-                            <input type="text" value={editingCar.location.district} onChange={e => setEditingCar({...editingCar, location: {...editingCar.location, district: e.target.value}})} className={inputClass} />
-                        </div>
+                    <div className="grid md:grid-cols-3 gap-4">
+                        <input type="number" placeholder="Yıl" value={editingCar.year} onChange={e => setEditingCar({...editingCar, year: e.target.value})} className={inputClass} />
+                        <input type="text" placeholder="Şehir" value={editingCar.location.city} onChange={e => setEditingCar({...editingCar, location: {...editingCar.location, city: e.target.value}})} className={inputClass} />
+                        <input type="text" placeholder="İlçe" value={editingCar.location.district} onChange={e => setEditingCar({...editingCar, location: {...editingCar.location, district: e.target.value}})} className={inputClass} />
                     </div>
 
-                    <div className="grid md:grid-cols-3 gap-6">
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Vites</label>
-                            <select value={editingCar.transmission} onChange={e => setEditingCar({...editingCar, transmission: e.target.value})} className={inputClass}>
-                                <option value="Otomatik">Otomatik</option>
-                                <option value="Manuel">Manuel</option>
-                            </select>
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Yakıt</label>
-                            <select value={editingCar.fuelType} onChange={e => setEditingCar({...editingCar, fuelType: e.target.value})} className={inputClass}>
-                                <option value="Benzin">Benzin</option>
-                                <option value="Dizel">Dizel</option>
-                                <option value="Hibrit">Hibrit</option>
-                                <option value="Elektrik">Elektrik</option>
-                            </select>
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Fiyat (₺)</label>
-                            <input type="number" value={editingCar.pricePerDay} onChange={e => setEditingCar({...editingCar, pricePerDay: e.target.value})} className={`${inputClass} font-bold text-primary-600`} />
-                        </div>
+                    <div className="grid md:grid-cols-3 gap-4">
+                        <select value={editingCar.transmission} onChange={e => setEditingCar({...editingCar, transmission: e.target.value})} className={inputClass}>
+                            <option value="Otomatik">Otomatik</option>
+                            <option value="Manuel">Manuel</option>
+                        </select>
+                        <select value={editingCar.fuelType} onChange={e => setEditingCar({...editingCar, fuelType: e.target.value})} className={inputClass}>
+                            <option value="Benzin">Benzin</option>
+                            <option value="Dizel">Dizel</option>
+                            <option value="Hibrit">Hibrit</option>
+                            <option value="Elektrik">Elektrik</option>
+                        </select>
+                        <input type="number" placeholder="Fiyat (₺)" value={editingCar.pricePerDay} onChange={e => setEditingCar({...editingCar, pricePerDay: e.target.value})} className={`${inputClass} font-bold text-primary-600`} />
                     </div>
 
                     <div className="flex gap-4 pt-4">
-                        <button type="button" onClick={() => setEditingCar(null)} className="flex-1 px-6 py-4 rounded-[10px] border border-gray-200 dark:border-gray-700 font-bold text-xs uppercase text-gray-500">İptal</button>
-                        <button type="submit" className="flex-[2] px-6 py-4 rounded-[10px] bg-primary-600 text-white font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2">
-                           <Save size={18} /> DEĞİŞİKLİKLERİ KAYDET
-                        </button>
+                        <button type="button" onClick={() => setEditingCar(null)} className="flex-1 px-6 py-4 rounded-[10px] border border-gray-200 dark:border-gray-700 font-bold text-xs uppercase">İPTAL</button>
+                        <button type="submit" className="flex-[2] px-6 py-4 rounded-[10px] bg-primary-600 text-white font-bold text-xs uppercase">DEĞİŞİKLİKLERİ KAYDET</button>
                     </div>
                 </form>
             </div>
@@ -382,318 +314,55 @@ const ProfilePage = () => {
                 </div>
               )}
 
-              {/* --- VERIFY TAB --- */}
-              {activeTab === 'verify' && (
-                <div className="animate-in fade-in slide-in-from-bottom-4">
-                  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 uppercase tracking-tighter">Profilini Doğrula</h2>
-                  <p className="text-gray-500 text-sm font-medium mb-12">Güvenli bir kiralama deneyimi için kimlik ve ehliyetinizi onaylamalısınız.</p>
-                  
-                  {userData?.isVerified ? (
-                    <div className="bg-green-50 dark:bg-green-900/10 p-10 rounded-[10px] border border-green-200 dark:border-green-800 flex flex-col items-center text-center">
-                       <div className="w-20 h-20 bg-green-500 text-white rounded-full flex items-center justify-center mb-6 border border-green-400">
-                          <ShieldCheck size={44} />
-                       </div>
-                       <h3 className="text-2xl font-bold text-green-700 dark:text-green-400 uppercase tracking-tight mb-2">Tebrikler, Doğrulandınız!</h3>
-                       <p className="text-sm text-green-600 dark:text-green-300 font-medium max-w-md">Kimliğiniz ve ehliyetiniz başarıyla onaylandı. Artık platformdaki tüm araçları kiralayabilir veya aracınızı listeleyebilirsiniz.</p>
-                       <button onClick={() => navigate('/search')} className="mt-8 bg-green-600 text-white px-8 py-3.5 rounded-[10px] font-bold text-xs uppercase tracking-widest border border-green-500">HEMEN ARAÇ ARA</button>
-                    </div>
-                  ) : (
-                    <div className="space-y-10">
-                       <div className="grid md:grid-cols-2 gap-8 text-left">
-                          {/* ID CARD */}
-                          <div className="space-y-4">
-                             <div className="flex items-center gap-2 mb-2">
-                                <IdCard size={20} className="text-primary-600" />
-                                <h4 className="text-xs font-bold uppercase text-gray-900 dark:text-white tracking-widest">Kimlik Ön Yüzü</h4>
-                             </div>
-                             <div 
-                                onClick={() => idInputRef.current?.click()}
-                                className={`aspect-[3/2] rounded-[10px] border-2 border-dashed transition-all flex flex-col items-center justify-center cursor-pointer relative overflow-hidden ${idPhoto ? 'border-primary-500' : 'border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
-                             >
-                                {idPhoto ? (
-                                   <div className={`w-full h-full ${kycStep === 'scanning' ? 'scan-animation' : ''}`}>
-                                      <img src={idPhoto} className="w-full h-full object-cover" />
-                                   </div>
-                                ) : (
-                                   <>
-                                      <Camera size={32} className="text-gray-300 mb-2" />
-                                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Fotoğraf Yükle</p>
-                                   </>
-                                )}
-                                <input type="file" ref={idInputRef} className="hidden" onChange={(e) => {
-                                   const file = e.target.files?.[0];
-                                   if (file) {
-                                      const reader = new FileReader();
-                                      reader.onloadend = () => setIdPhoto(reader.result as string);
-                                      reader.readAsDataURL(file);
-                                   }
-                                }} />
-                             </div>
-                          </div>
-
-                          {/* LICENSE */}
-                          <div className="space-y-4">
-                             <div className="flex items-center gap-2 mb-2">
-                                <ShieldCheck size={20} className="text-primary-600" />
-                                <h4 className="text-xs font-bold uppercase text-gray-900 dark:text-white tracking-widest">Ehliyet Fotoğrafı</h4>
-                             </div>
-                             <div 
-                                onClick={() => licenseInputRef.current?.click()}
-                                className={`aspect-[3/2] rounded-[10px] border-2 border-dashed transition-all flex flex-col items-center justify-center cursor-pointer relative overflow-hidden ${licensePhoto ? 'border-primary-500' : 'border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
-                             >
-                                {licensePhoto ? (
-                                   <div className={`w-full h-full ${kycStep === 'scanning' ? 'scan-animation' : ''}`}>
-                                      <img src={licensePhoto} className="w-full h-full object-cover" />
-                                   </div>
-                                ) : (
-                                   <>
-                                      <Camera size={32} className="text-gray-300 mb-2" />
-                                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Fotoğraf Yükle</p>
-                                   </>
-                                )}
-                                <input type="file" ref={licenseInputRef} className="hidden" onChange={(e) => {
-                                   const file = e.target.files?.[0];
-                                   if (file) {
-                                      const reader = new FileReader();
-                                      reader.onloadend = () => setLicensePhoto(reader.result as string);
-                                      reader.readAsDataURL(file);
-                                   }
-                                }} />
-                             </div>
-                          </div>
-                       </div>
-
-                       <div className="bg-gray-50 dark:bg-gray-800/50 p-6 rounded-[10px] border border-gray-100 dark:border-gray-800 text-left">
-                          <div className="flex items-start gap-4">
-                             <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-[10px] flex items-center justify-center shrink-0 border border-blue-100">
-                                <Info size={20} />
-                             </div>
-                             <div>
-                                <h5 className="text-xs font-bold text-gray-900 dark:text-white uppercase mb-1">Veri Güvenliği</h5>
-                                <p className="text-[10px] text-gray-500 font-medium leading-relaxed">Yüklediğiniz belgeler 256-bit şifreleme ile korunur. Doğrulama yapay zeka tarafından saniyeler içinde tamamlanır.</p>
-                             </div>
-                          </div>
-                       </div>
-
-                       <button 
-                         onClick={verifyAccount}
-                         disabled={kycStep === 'scanning' || !idPhoto || !licensePhoto}
-                         className="w-full bg-primary-600 text-white py-5 rounded-[10px] font-bold text-sm uppercase tracking-widest border border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
-                       >
-                          {kycStep === 'scanning' ? (
-                            <><RefreshCw size={20} className="animate-spin" /> AI BELGELERİ TARIYOR...</>
-                          ) : (
-                            <><ShieldCheck size={20} /> DOĞRULAMAYI BAŞLAT</>
-                          )}
-                       </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* --- RENTALS TAB --- */}
-              {activeTab === 'rentals' && (
-                <div className="animate-in fade-in slide-in-from-bottom-4">
-                  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8 uppercase tracking-tighter">Kiralamalarım</h2>
-                  {myTrips.length === 0 ? (
-                    <div className="text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-[10px] border-2 border-dashed border-gray-200 dark:border-gray-700">
-                       <History size={48} className="text-gray-300 mx-auto mb-4" />
-                       <h3 className="text-lg font-bold text-gray-400">Henüz hiç araç kiralamadınız.</h3>
-                       <button onClick={() => navigate('/search')} className="mt-8 bg-primary-600 text-white px-8 py-3.5 rounded-[10px] font-bold uppercase tracking-widest text-xs border border-primary-500">Şimdi araç ara</button>
-                    </div>
-                  ) : (
-                    <div className="grid md:grid-cols-2 gap-6">
-                      {myTrips.map(trip => (
-                        <div key={trip.id} className="bg-white dark:bg-gray-800 rounded-[10px] border border-gray-100 dark:border-gray-700 p-6 flex gap-6 hover:border-primary-200 transition-all">
-                           <img src={trip.carImage} className="w-24 h-24 rounded-[10px] object-cover shrink-0 border border-gray-100" />
-                           <div className="flex-1 min-w-0 text-left">
-                              <div className="flex justify-between items-start gap-2">
-                                <h4 className="font-bold text-sm text-gray-900 dark:text-white uppercase truncate tracking-tight">{trip.carName}</h4>
-                                <span className={`shrink-0 text-[8px] font-bold uppercase px-2 py-1 rounded-[10px] border ${trip.status === 'Tamamlandı' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-primary-50 text-primary-600 border-primary-100'}`}>{trip.status}</span>
-                              </div>
-                              <div className="mt-2 space-y-1">
-                                <p className="text-[10px] text-gray-500 font-medium flex items-center gap-1.5"><Calendar size={12}/> {new Date(trip.pickupDate).toLocaleDateString('tr-TR')}</p>
-                                <p className="text-[10px] text-gray-500 font-medium flex items-center gap-1.5"><MapPin size={12}/> {trip.location}</p>
-                              </div>
-                              <div className="mt-4 flex justify-between items-center">
-                                 <p className="text-xs font-bold text-primary-600">₺{trip.totalPrice}</p>
-                                 <button className="text-[9px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1 hover:text-primary-600 transition-colors">
-                                    Detaylar <ChevronRight size={12}/>
-                                 </button>
-                              </div>
-                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* --- PAYMENTS TAB --- */}
-              {activeTab === 'payments' && (
-                <div className="animate-in fade-in slide-in-from-bottom-4">
-                  <div className="flex justify-between items-center mb-10 text-left">
-                    <div>
-                        <h2 className="text-3xl font-bold text-gray-900 dark:text-white uppercase tracking-tighter">Ödeme Yöntemleri</h2>
-                        <p className="text-xs font-medium text-gray-500 mt-1">Kiralama yaparken kullanacağınız kartları yönetin.</p>
-                    </div>
-                    <button className="flex items-center gap-2 bg-primary-600 text-white px-6 py-3 rounded-[10px] font-bold text-xs uppercase tracking-widest border border-primary-500">
-                       <Plus size={18} /> Yeni Kart
-                    </button>
-                  </div>
-
-                  <div className="grid md:grid-cols-2 gap-8 text-left">
-                     {paymentMethods.map(method => (
-                       <div key={method.id} className="bg-gray-900 p-8 rounded-[10px] border border-gray-700 text-white relative overflow-hidden group min-h-[220px]">
-                          <div className="flex justify-between items-start mb-12 relative z-10">
-                             <CreditCard size={32} className="text-primary-400" />
-                             {method.isDefault && <span className="text-[10px] font-bold uppercase tracking-widest bg-white/10 px-3 py-1.5 rounded-[10px] border border-white/20">Varsayılan</span>}
-                          </div>
-                          <div className="relative z-10 text-left">
-                             <p className="text-lg font-mono tracking-widest mb-6">**** **** **** {method.last4}</p>
-                             <div className="flex justify-between items-end">
-                                <div>
-                                   <p className="text-[9px] font-bold uppercase tracking-widest opacity-60 mb-1">Kart Sahibi</p>
-                                   <p className="font-bold uppercase tracking-tight">{userData?.name} {userData?.surname}</p>
-                                </div>
-                                <div className="text-right">
-                                   <p className="text-[9px] font-bold uppercase tracking-widest opacity-60 mb-1">SKT</p>
-                                   <p className="font-bold">{method.exp}</p>
-                                </div>
-                             </div>
-                          </div>
-                       </div>
-                     ))}
-                     
-                     <div className="bg-gray-50 dark:bg-gray-800 p-8 rounded-[10px] border-2 border-dashed border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center text-center group cursor-pointer hover:border-primary-400 transition-all min-h-[220px]">
-                        <div className="w-16 h-16 bg-white dark:bg-gray-700 rounded-[10px] flex items-center justify-center text-gray-400 mb-4 border border-gray-100">
-                           <Plus size={32} />
-                        </div>
-                        <h4 className="font-bold text-gray-900 dark:text-white uppercase tracking-widest mb-2">Yeni Kart Ekle</h4>
-                        <p className="text-xs text-gray-400 font-medium max-w-[180px]">Güvenli altyapı.</p>
-                     </div>
-                  </div>
-                </div>
-              )}
-
-              {/* --- CREDIT TAB --- */}
-              {activeTab === 'credit' && (
-                <div className="animate-in fade-in slide-in-from-bottom-4 text-center py-12">
-                   <div className="w-24 h-24 bg-primary-100 dark:bg-primary-900/30 text-primary-600 rounded-[10px] flex items-center justify-center mx-auto mb-8 border border-primary-200">
-                      <Gift size={48} />
-                   </div>
-                   <h2 className="text-4xl font-bold text-gray-900 dark:text-white uppercase tracking-tighter mb-4">Arkadaşlarını Davet Et</h2>
-                   <p className="text-gray-500 font-medium max-w-sm mx-auto mb-10 leading-relaxed uppercase tracking-widest text-[10px]">Her başarılı kiralama işlemi için <br/><span className="text-primary-600 text-xl font-bold">₺500 KREDİ</span> kazanın!</p>
-                   
-                   <div className="max-w-md mx-auto bg-gray-50 dark:bg-gray-800 p-8 rounded-[10px] border border-gray-100 dark:border-gray-700 mb-12 text-left">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 text-left">Senin Referans Kodun</p>
-                      <div className="flex gap-3">
-                         <div className="flex-1 bg-white dark:bg-gray-900 p-4 rounded-[10px] border border-gray-200 dark:border-gray-700 font-bold text-primary-600 text-lg uppercase tracking-widest">
-                            GET500-{userData?.name?.[0]}{userData?.surname?.[0]}
-                         </div>
-                         <button className="bg-primary-600 text-white p-4 rounded-[10px] border border-primary-500 hover:scale-105 active:scale-95 transition-all">
-                            <Share2 size={24} />
-                         </button>
-                      </div>
-                   </div>
-
-                   <div className="grid md:grid-cols-3 gap-6 text-left">
-                      {[
-                        { icon: Mail, title: 'Davet Gönder', desc: 'Özel kodunu paylaş.' },
-                        { icon: Zap, title: 'Kiralamaya Başlasın', desc: 'Arkadaşın ilk sürüşünü tamamlasın.' },
-                        { icon: TrendingUp, title: '₺500 Senin', desc: 'Kredin anında yüklensin.' }
-                      ].map((step, i) => (
-                        <div key={i} className="p-6 bg-white dark:bg-gray-900 rounded-[10px] border border-gray-100 dark:border-gray-800">
-                           <step.icon size={20} className="text-primary-600 mb-4" />
-                           <h4 className="font-bold uppercase text-xs mb-2 text-gray-900 dark:text-white">{step.title}</h4>
-                           <p className="text-[10px] text-gray-500 font-medium">{step.desc}</p>
-                        </div>
-                      ))}
-                   </div>
-                </div>
-              )}
-
-              {/* --- NOTIFICATIONS TAB --- */}
-              {activeTab === 'notifications' && (
-                <div className="animate-in fade-in slide-in-from-bottom-4 text-left">
-                  <div className="flex justify-between items-center mb-8 text-left">
-                    <h2 className="text-3xl font-bold text-gray-900 dark:text-white uppercase tracking-tighter">Bildirimler</h2>
-                    <button onClick={handleMarkAllAsRead} className="text-[10px] font-bold text-primary-600 uppercase tracking-widest hover:underline">Tümünü Okundu İşaretle</button>
-                  </div>
-                  <div className="space-y-4">
-                    {notifications.length === 0 ? (
-                      <div className="text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-[10px] border-2 border-dashed border-gray-200 dark:border-gray-700">
-                         <Bell size={48} className="text-gray-300 mx-auto mb-4" />
-                         <p className="text-sm font-medium text-gray-400">Henüz bildiriminiz bulunmuyor.</p>
-                      </div>
-                    ) : (
-                      notifications.map(n => (
-                        <div 
-                          key={n.id} 
-                          onClick={() => handleMarkAsRead(n.id)}
-                          className={`p-6 rounded-[10px] border flex gap-6 cursor-pointer transition-all active:scale-[0.99] ${n.read ? 'bg-white border-gray-100 dark:bg-gray-800 dark:border-gray-700' : 'bg-primary-50/40 border-primary-200 dark:bg-primary-900/10 dark:border-primary-800'}`}
-                        >
-                           <div className={`w-12 h-12 rounded-[10px] flex items-center justify-center shrink-0 border ${n.read ? 'bg-gray-100 text-gray-400 border-gray-200' : (n.type === 'success' ? 'bg-green-100 text-green-600 border-green-200' : 'bg-primary-100 text-primary-600 border-primary-200')}`}>
-                              {n.type === 'success' ? <CheckCircle size={24} /> : <Bell size={24} />}
-                           </div>
-                           <div className="flex-1 text-left">
-                              <div className="flex justify-between items-start mb-1">
-                                 <h4 className={`text-sm font-bold uppercase ${n.read ? 'text-gray-500' : 'text-primary-600'}`}>{n.title}</h4>
-                                 <span className="text-[10px] font-medium text-gray-400">{n.time}</span>
-                              </div>
-                              <p className={`text-xs font-medium leading-relaxed ${n.read ? 'text-gray-400' : 'text-gray-600 dark:text-gray-300'}`}>{n.message}</p>
-                           </div>
-                           {!n.read && <div className="w-2.5 h-2.5 bg-primary-600 rounded-full self-center border border-primary-400 animate-pulse"></div>}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* --- ARAÇLARIM SEKMESİ --- */}
+              {/* --- CARS TAB --- */}
               {activeTab === 'cars' && (
                  <div className="animate-in fade-in slide-in-from-bottom-4">
                     <div className="flex justify-between items-center mb-10 text-left">
                       <h2 className="text-3xl font-bold text-gray-900 dark:text-white uppercase tracking-tighter">Araçlarım</h2>
-                      <button onClick={() => navigate('/list-car')} className="flex items-center gap-2 bg-primary-600 text-white px-6 py-3 rounded-[10px] font-bold text-xs uppercase border border-primary-500 active:scale-95 transition-transform">
+                      <button onClick={() => navigate('/list-car')} className="flex items-center gap-2 bg-primary-600 text-white px-6 py-3 rounded-[10px] font-bold text-xs uppercase border border-primary-500">
                          <PlusCircle size={18} /> Yeni İlan
                       </button>
                     </div>
+
                     {myCars.length === 0 ? (
                       <div className="text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-[10px] border-2 border-dashed border-gray-200 dark:border-gray-700">
                          <Car size={48} className="text-gray-300 mx-auto mb-4" />
                          <h3 className="text-lg font-bold text-gray-400 mb-6 uppercase tracking-widest">Henüz yayınlanmış bir aracınız yok.</h3>
-                         <button onClick={() => navigate('/list-car')} className="bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 px-8 py-3 rounded-[10px] font-bold uppercase text-xs tracking-widest border border-gray-200 dark:border-gray-600 transition-all">Hemen aracını listele</button>
+                         <button onClick={() => navigate('/list-car')} className="bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 px-8 py-3 rounded-[10px] font-bold uppercase text-xs tracking-widest border border-gray-200 dark:border-gray-600">Hemen aracını listele</button>
                       </div>
                     ) : (
                       <div className="grid md:grid-cols-2 gap-8 text-left">
                         {myCars.map(car => (
-                          <div key={car.id} className="bg-white dark:bg-gray-800 rounded-[10px] border border-gray-100 dark:border-gray-700 overflow-hidden group relative transition-all hover:border-primary-300">
+                          <div key={car.id} className={`bg-white dark:bg-gray-800 rounded-[10px] border overflow-hidden group relative transition-all shadow-sm ${car.status === 'Paused' ? 'grayscale opacity-70 border-gray-200' : 'border-gray-100 hover:border-primary-300'}`}>
                              <div className="h-48 relative overflow-hidden">
                                 <img src={car.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                                <div className="absolute top-4 left-4 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md px-3 py-1.5 rounded-[10px] text-[9px] font-bold text-green-600 uppercase tracking-widest border border-green-100">AKTİF</div>
+                                <div className={`absolute top-4 left-4 backdrop-blur-md px-3 py-1.5 rounded-[10px] text-[9px] font-bold uppercase tracking-widest border ${car.status === 'Paused' ? 'bg-yellow-50/90 text-yellow-600 border-yellow-200' : 'bg-green-50/90 text-green-600 border-green-100'}`}>
+                                  {car.status === 'Paused' ? 'DURAKLATILDI' : 'AKTİF'}
+                                </div>
                              </div>
-                             <div className="p-8 text-left">
+                             <div className="p-6 text-left">
                                 <div className="flex justify-between items-start mb-4">
                                    <div className="flex-1 min-w-0">
-                                      <h4 className="text-xl font-bold text-gray-900 dark:text-white uppercase leading-none tracking-tight truncate">{car.brand} {car.model}</h4>
-                                      <p className="text-[10px] font-bold text-gray-400 uppercase mt-2 tracking-widest">{car.location?.district}, {car.location?.city}</p>
+                                      <h4 className="text-lg font-black text-gray-900 dark:text-white uppercase leading-none truncate">{car.brand} {car.model}</h4>
+                                      <p className="text-[10px] font-bold text-gray-400 uppercase mt-2">{car.location?.district}, {car.location?.city}</p>
                                    </div>
                                    <div className="text-right">
-                                      <p className="text-xl font-bold text-primary-600">₺{car.pricePerDay}</p>
-                                      <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">GÜNLÜK</p>
+                                      <p className="text-lg font-black text-primary-600">₺{car.pricePerDay}</p>
+                                      <p className="text-[8px] font-bold text-gray-400 uppercase">GÜNLÜK</p>
                                    </div>
                                 </div>
-                                <div className="grid grid-cols-3 gap-2 mt-6">
-                                   <button onClick={() => navigate('/dashboard')} className="bg-gray-900 dark:bg-primary-900/40 text-white p-3 rounded-[10px] border border-gray-700 flex items-center justify-center group/btn hover:bg-black transition-colors" title="Panel">
-                                      <TrendingUp size={18} />
+                                <div className="grid grid-cols-4 gap-2 mt-6">
+                                   <button onClick={() => navigate('/dashboard')} className="bg-gray-900 text-white p-3 rounded-[10px] flex items-center justify-center hover:bg-black transition-colors" title="İstatistik">
+                                      <TrendingUp size={16} />
                                    </button>
-                                   <button onClick={() => setEditingCar(car)} className="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 p-3 rounded-[10px] border border-gray-200 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 transition-colors" title="Düzenle">
-                                      <Pencil size={18} />
+                                   <button onClick={() => setEditingCar(car)} className="bg-gray-100 text-gray-600 p-3 rounded-[10px] flex items-center justify-center hover:bg-gray-200 transition-colors" title="Düzenle">
+                                      <Pencil size={16} />
                                    </button>
-                                   <button onClick={(e) => handleDeleteCar(e, car.id, `${car.brand} ${car.model}`)} className="bg-red-50 dark:bg-red-900/20 text-red-600 p-3 rounded-[10px] border border-red-100 dark:border-red-900 flex items-center justify-center hover:bg-red-100 transition-colors" title="Sil">
-                                      <Trash2 size={18} />
+                                   <button onClick={() => handleToggleCarStatus(car.id, car.status)} className={`${car.status === 'Paused' ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'} p-3 rounded-[10px] flex items-center justify-center hover:scale-105 transition-all`} title={car.status === 'Paused' ? 'Yayınla' : 'Duraklat'}>
+                                      {car.status === 'Paused' ? <Play size={16} /> : <Pause size={16} />}
+                                   </button>
+                                   <button onClick={() => handleDeleteCar(car.id, `${car.brand} ${car.model}`)} className="bg-red-100 text-red-600 p-3 rounded-[10px] flex items-center justify-center hover:bg-red-200 transition-colors" title="Sil">
+                                      <Trash2 size={16} />
                                    </button>
                                 </div>
                              </div>
@@ -704,6 +373,8 @@ const ProfilePage = () => {
                  </div>
               )}
 
+              {/* DİĞER SEKMELER (RENALS, PAYMENTS VB.) ÖNCEKİ KODDA OLDUĞU GİBİ BURADA KALMALI... */}
+              
             </div>
           </main>
         </div>

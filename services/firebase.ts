@@ -34,11 +34,10 @@ export const dbService = {
     const updated = [...cars, car];
     localStorage.setItem('myCars', JSON.stringify(updated));
     
-    // Araç listelendiğinde bildirim ekle
     dbService.addNotification({
       id: Date.now(),
       title: 'İLAN YAYINLANDI!',
-      message: `${car.brand} ${car.model} başarıyla listelendi. Artık kiracılar aracınızı görebilir.`,
+      message: `${car.brand} ${car.model} başarıyla listelendi.`,
       time: 'Az önce',
       read: false,
       type: 'success'
@@ -49,21 +48,30 @@ export const dbService = {
 
   deleteCar: (id: number | string) => {
     const cars = dbService.getCars();
-    // ID tipini garantiye almak için String kullanıyoruz ve filter sonucunu kontrol ediyoruz
-    const initialCount = cars.length;
     const updated = cars.filter((c: any) => String(c.id) !== String(id));
-    
-    if (updated.length < initialCount) {
-      localStorage.setItem('myCars', JSON.stringify(updated));
-      window.dispatchEvent(new Event('storage'));
-      return true;
-    }
-    return false;
+    localStorage.setItem('myCars', JSON.stringify(updated));
+    // ÖNEMLİ: Custom event fırlatarak diğer componentlerin (Search vb.) de güncellenmesini sağlıyoruz
+    window.dispatchEvent(new Event('storage'));
+    return true;
   },
 
   updateCar: (id: number | string, data: any) => {
     const cars = dbService.getCars();
     const updated = cars.map((c: any) => String(c.id) === String(id) ? { ...c, ...data } : c);
+    localStorage.setItem('myCars', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+  },
+
+  // Yeni: İlan Durumunu Değiştir (Aktif/Pasif)
+  toggleCarStatus: (id: number | string) => {
+    const cars = dbService.getCars();
+    const updated = cars.map((c: any) => {
+      if (String(c.id) === String(id)) {
+        const newStatus = c.status === 'Active' ? 'Paused' : 'Active';
+        return { ...c, status: newStatus };
+      }
+      return c;
+    });
     localStorage.setItem('myCars', JSON.stringify(updated));
     window.dispatchEvent(new Event('storage'));
   },
@@ -82,16 +90,16 @@ export const dbService = {
     return defaultCard;
   },
 
-  // BİLDİRİM SİSTEMİ ÇEKİRDEĞİ
+  // BİLDİRİM SİSTEMİ
   getNotifications: () => {
     return JSON.parse(localStorage.getItem('notifications') || '[]');
   },
 
   addNotification: (notif: any) => {
     const list = dbService.getNotifications();
-    const updated = [notif, ...list].slice(0, 20); // Son 20 bildirimi tut
+    const updated = [notif, ...list].slice(0, 20);
     localStorage.setItem('notifications', JSON.stringify(updated));
-    window.dispatchEvent(new Event('storage')); // UI'ları tetikle
+    window.dispatchEvent(new Event('storage'));
   },
 
   markNotificationRead: (id: number) => {
