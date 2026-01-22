@@ -19,11 +19,12 @@ export const dbService = {
     window.dispatchEvent(new Event('storage')); 
   },
 
-  // Araçları Yönet
+  // Araçları Yönet (Local Storage'dan temiz okuma)
   getCars: () => {
     try {
       const cars = localStorage.getItem('myCars');
-      return cars ? JSON.parse(cars) : [];
+      const parsed = cars ? JSON.parse(cars) : [];
+      return Array.isArray(parsed) ? parsed : [];
     } catch (e) {
       return [];
     }
@@ -31,31 +32,21 @@ export const dbService = {
   
   saveCar: (car: any) => {
     const cars = dbService.getCars();
-    const updated = [...cars, car];
+    // İlan varsayılan olarak 'Active' başlar
+    const updated = [...cars, { ...car, status: car.status || 'Active' }];
     localStorage.setItem('myCars', JSON.stringify(updated));
-    
-    dbService.addNotification({
-      id: Date.now(),
-      title: 'İLAN YAYINLANDI!',
-      message: `${car.brand} ${car.model} başarıyla listelendi.`,
-      time: 'Az önce',
-      read: false,
-      type: 'success'
-    });
-
     window.dispatchEvent(new Event('storage'));
   },
 
-  // KESİN SİLME MANTIĞI
+  // KESİN SİLME: ID tipini (String/Number) eşitleyerek hatayı önler
   deleteCar: (id: number | string) => {
     const cars = dbService.getCars();
-    // ID tipini garantiye almak için String kullanıyoruz
     const updated = cars.filter((c: any) => String(c.id) !== String(id));
     localStorage.setItem('myCars', JSON.stringify(updated));
     
-    // Uygulamanın genelini uyar
+    // Uygulamanın geri kalanına (Navbar, Search vb.) verinin değiştiğini haber ver
     window.dispatchEvent(new Event('storage'));
-    return true;
+    return updated;
   },
 
   updateCar: (id: number | string, data: any) => {
@@ -63,45 +54,32 @@ export const dbService = {
     const updated = cars.map((c: any) => String(c.id) === String(id) ? { ...c, ...data } : c);
     localStorage.setItem('myCars', JSON.stringify(updated));
     window.dispatchEvent(new Event('storage'));
+    return updated;
   },
 
-  // İlan Durumunu Değiştir (Aktif/Dondurulmuş)
+  // İLAN DURAKLATMA / YAYINA ALMA (Toggle)
   toggleCarStatus: (id: number | string) => {
     const cars = dbService.getCars();
     const updated = cars.map((c: any) => {
       if (String(c.id) === String(id)) {
-        // Active -> Paused, Paused -> Active
-        const newStatus = c.status === 'Active' ? 'Paused' : 'Active';
+        const newStatus = (c.status === 'Active' || !c.status) ? 'Paused' : 'Active';
         return { ...c, status: newStatus };
       }
       return c;
     });
     localStorage.setItem('myCars', JSON.stringify(updated));
     window.dispatchEvent(new Event('storage'));
+    return updated;
   },
 
-  // Kiralamaları (Yolculukları) Yönet
-  getTrips: () => {
-    return JSON.parse(localStorage.getItem('myTrips') || '[]');
-  },
-
-  // Ödeme Yöntemleri
-  getPaymentMethods: () => {
-    const methods = localStorage.getItem('paymentMethods');
-    if (methods) return JSON.parse(methods);
-    const defaultCard = [{ id: 1, last4: '4242', brand: 'VISA', exp: '12/28', isDefault: true }];
-    localStorage.setItem('paymentMethods', JSON.stringify(defaultCard));
-    return defaultCard;
-  },
-
-  // Bildirim Sistemi
-  getNotifications: () => {
-    return JSON.parse(localStorage.getItem('notifications') || '[]');
-  },
+  // Diğer Servisler...
+  getTrips: () => JSON.parse(localStorage.getItem('myTrips') || '[]'),
+  getPaymentMethods: () => JSON.parse(localStorage.getItem('paymentMethods') || '[{"id":1,"last4":"4242","brand":"VISA","exp":"12/28","isDefault":true}]'),
+  getNotifications: () => JSON.parse(localStorage.getItem('notifications') || '[]'),
 
   addNotification: (notif: any) => {
     const list = dbService.getNotifications();
-    const updated = [notif, ...list].slice(0, 20);
+    const updated = [notif, ...list].slice(0, 15);
     localStorage.setItem('notifications', JSON.stringify(updated));
     window.dispatchEvent(new Event('storage'));
   },
@@ -109,13 +87,6 @@ export const dbService = {
   markNotificationRead: (id: number) => {
     const list = dbService.getNotifications();
     const updated = list.map((n: any) => n.id === id ? { ...n, read: true } : n);
-    localStorage.setItem('notifications', JSON.stringify(updated));
-    window.dispatchEvent(new Event('storage'));
-  },
-
-  markAllNotificationsRead: () => {
-    const list = dbService.getNotifications();
-    const updated = list.map((n: any) => ({ ...n, read: true }));
     localStorage.setItem('notifications', JSON.stringify(updated));
     window.dispatchEvent(new Event('storage'));
   }
