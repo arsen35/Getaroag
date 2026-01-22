@@ -2,10 +2,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Navbar from '../components/Navbar';
 import { 
-  PlusCircle, Car, Camera, ShieldCheck, History, Bell, CreditCard, User, X, Pencil, Trash2, Play, Pause, Loader2, MapPin, Fuel, Save, CheckCircle, ChevronRight, AlertCircle, Mail, Phone, Lock, CreditCard as CardIcon, Plus, Check
+  PlusCircle, Car, Camera, ShieldCheck, History, Bell, CreditCard, User, X, Pencil, Trash2, Play, Pause, Loader2, MapPin, Fuel, Save, CheckCircle, ChevronRight, AlertCircle, Mail, Phone, Lock, CreditCard as CardIcon, Plus, Check, Navigation, Map as MapIcon
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { checkAuthStatus, dbService } from '../services/firebase';
+
+declare const L: any;
 
 const ProfilePage = () => {
   const navigate = useNavigate();
@@ -24,7 +26,10 @@ const ProfilePage = () => {
   const [newCard, setNewCard] = useState({ name: '', number: '', exp: '', cvc: '' });
   
   const editPhotoRef = useRef<HTMLInputElement>(null);
-  
+  const editMapContainerRef = useRef<HTMLDivElement>(null);
+  const editMapRef = useRef<any>(null);
+  const editMarkerRef = useRef<any>(null);
+
   const loadData = () => {
     setUserData(dbService.getProfile());
     setMyTrips(dbService.getTrips());
@@ -40,11 +45,87 @@ const ProfilePage = () => {
     return () => window.removeEventListener('storage', loadData);
   }, [navigate]);
 
+  // Düzenleme Haritası Başlatma
+  useEffect(() => {
+    if (editingCar && editMapContainerRef.current && !editMapRef.current) {
+      const lat = editingCar.location?.lat || 39.9334;
+      const lng = editingCar.location?.lng || 32.8597;
+
+      editMapRef.current = L.map(editMapContainerRef.current, {
+        zoomControl: false,
+        attributionControl: false
+      }).setView([lat, lng], 13);
+
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(editMapRef.current);
+
+      const customIcon = L.divIcon({
+        className: 'custom-div-icon',
+        html: `<div class="w-8 h-8 bg-primary-600 rounded-full border-4 border-white shadow-lg flex items-center justify-center text-white"><div class="w-2 h-2 bg-white rounded-full"></div></div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+
+      editMarkerRef.current = L.marker([lat, lng], { icon: customIcon, draggable: true }).addTo(editMapRef.current);
+      
+      editMarkerRef.current.on('dragend', (e: any) => {
+        const pos = e.target.getLatLng();
+        setEditingCar((prev: any) => ({
+          ...prev,
+          location: { ...prev.location, lat: pos.lat, lng: pos.lng }
+        }));
+      });
+
+      editMapRef.current.on('click', (e: any) => {
+        const { lat, lng } = e.latlng;
+        editMarkerRef.current.setLatLng([lat, lng]);
+        setEditingCar((prev: any) => ({
+          ...prev,
+          location: { ...prev.location, lat, lng }
+        }));
+      });
+    }
+
+    return () => {
+      if (editMapRef.current) {
+        editMapRef.current.remove();
+        editMapRef.current = null;
+        editMarkerRef.current = null;
+      }
+    };
+  }, [editingCar]);
+
+  const handleEditGps = () => {
+    if (!navigator.geolocation) return alert("GPS desteklenmiyor.");
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const { latitude, longitude } = pos.coords;
+      
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=tr`);
+        const data = await response.json();
+        if (data && data.address) {
+          const city = data.address.province || data.address.city || '';
+          const district = data.address.suburb || data.address.district || '';
+          setEditingCar((prev: any) => ({
+            ...prev,
+            location: { ...prev.location, city, district, lat: latitude, lng: longitude }
+          }));
+          if (editMapRef.current) {
+            editMapRef.current.flyTo([latitude, longitude], 16);
+            editMarkerRef.current.setLatLng([latitude, longitude]);
+          }
+        }
+      } catch (e) { console.error(e); }
+    });
+  };
+
   const handleDeleteCar = (id: number | string, name: string) => {
-    if (window.confirm(`${name} ilanını silmek istediğinize emin misiniz?`)) {
-        const updated = dbService.deleteCar(id);
+    if (window.confirm(`${name} ilanını kalıcı olarak silmek istediğinize emin misiniz?`)) {
+        dbService.deleteCar(id);
+        const updated = myCars.filter(c => String(c.id) !== String(id));
         setMyCars(updated);
         dbService.addNotification({ title: 'İlan Silindi', message: `${name} başarıyla kaldırıldı.`, type: 'info', time: 'Az önce' });
+        // UI Sync Garantisi
+        setTimeout(() => { window.location.reload(); }, 150);
     }
   };
 
@@ -62,11 +143,9 @@ const ProfilePage = () => {
     loadData();
   };
 
-  // Added handleUpdateProfile to persist profile changes and show a notification
   const handleUpdateProfile = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    // Simulate network delay for better UX
     setTimeout(() => {
       dbService.updateProfile(userData);
       setIsSaving(false);
@@ -107,44 +186,87 @@ const ProfilePage = () => {
         </div>
       )}
 
-      {/* --- ARAÇ DÜZENLEME MODALI --- */}
+      {/* --- GELİŞMİŞ ARAÇ DÜZENLEME MODALI --- */}
       {editingCar && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md overflow-y-auto">
-            <div className="bg-white dark:bg-gray-900 rounded-[10px] border p-8 w-full max-w-2xl my-auto shadow-2xl">
+            <div className="bg-white dark:bg-gray-900 rounded-[10px] border p-8 w-full max-w-3xl my-8 shadow-2xl animate-in fade-in slide-in-from-bottom-4">
                 <div className="flex justify-between items-center mb-8">
-                    <h3 className="text-2xl font-black uppercase tracking-tighter text-gray-900 dark:text-white">İlanı Düzenle</h3>
-                    <button onClick={() => setEditingCar(null)} className="text-gray-400 p-2"><X size={24}/></button>
+                    <h3 className="text-2xl font-black uppercase tracking-tighter text-gray-900 dark:text-white">İlan Detaylarını Güncelle</h3>
+                    <button onClick={() => setEditingCar(null)} className="text-gray-400 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-all"><X size={24}/></button>
                 </div>
+                
                 <form onSubmit={(e) => { e.preventDefault(); dbService.updateCar(editingCar.id, editingCar); setEditingCar(null); loadData(); }} className="space-y-6 text-left">
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Kapak Fotoğrafı</label>
-                        <div className="relative group cursor-pointer h-40" onClick={() => editPhotoRef.current?.click()}>
-                            <img src={editingCar.image} className="w-full h-full object-cover rounded-[10px]" />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white font-bold text-xs rounded-[10px]">DEĞİŞTİR</div>
-                            <input type="file" ref={editPhotoRef} className="hidden" onChange={(e) => {
-                                if (e.target.files?.[0]) {
-                                    const reader = new FileReader();
-                                    reader.onloadend = () => setEditingCar({ ...editingCar, image: reader.result as string });
-                                    reader.readAsDataURL(e.target.files[0]);
-                                }
-                            }} />
+                    
+                    {/* Fotoğraf ve Harita Izgarası */}
+                    <div className="grid md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Kapak Fotoğrafı</label>
+                            <div className="relative group cursor-pointer h-48" onClick={() => editPhotoRef.current?.click()}>
+                                <img src={editingCar.image} className="w-full h-full object-cover rounded-[10px] border dark:border-gray-800" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white font-black text-[10px] uppercase rounded-[10px] transition-all backdrop-blur-[2px]">FOTOĞRAFI DEĞİŞTİR</div>
+                                <input type="file" ref={editPhotoRef} className="hidden" onChange={(e) => {
+                                    if (e.target.files?.[0]) {
+                                        const reader = new FileReader();
+                                        reader.onloadend = () => setEditingCar({ ...editingCar, image: reader.result as string });
+                                        reader.readAsDataURL(e.target.files[0]);
+                                    }
+                                }} />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Konum Seçimi</label>
+                                <button type="button" onClick={handleEditGps} className="text-[9px] font-black text-primary-600 flex items-center gap-1 hover:underline uppercase">
+                                    <Navigation size={12}/> GPS İLE BUL
+                                </button>
+                            </div>
+                            <div className="h-48 rounded-[10px] overflow-hidden border dark:border-gray-800 bg-gray-50 dark:bg-gray-950 relative">
+                                <div ref={editMapContainerRef} className="w-full h-full z-0" />
+                            </div>
                         </div>
                     </div>
+
+                    {/* Konum Metin Alanları */}
                     <div className="grid md:grid-cols-2 gap-4">
-                        <input type="text" placeholder="Marka" value={editingCar.brand} onChange={e => setEditingCar({...editingCar, brand: e.target.value})} className={inputClass} />
-                        <input type="text" placeholder="Model" value={editingCar.model} onChange={e => setEditingCar({...editingCar, model: e.target.value})} className={inputClass} />
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Şehir</label>
+                            <input type="text" placeholder="Şehir" value={editingCar.location?.city || ''} onChange={e => setEditingCar({...editingCar, location: {...editingCar.location, city: e.target.value}})} className={inputClass} />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">İlçe</label>
+                            <input type="text" placeholder="İlçe" value={editingCar.location?.district || ''} onChange={e => setEditingCar({...editingCar, location: {...editingCar.location, district: e.target.value}})} className={inputClass} />
+                        </div>
                     </div>
-                    <div className="grid md:grid-cols-3 gap-4">
-                        <input type="number" placeholder="Yıl" value={editingCar.year} onChange={e => setEditingCar({...editingCar, year: e.target.value})} className={inputClass} />
-                        <select value={editingCar.transmission} onChange={e => setEditingCar({...editingCar, transmission: e.target.value})} className={inputClass}>
-                            <option value="Otomatik">Otomatik</option>
-                            <option value="Manuel">Manuel</option>
-                        </select>
-                        <input type="number" placeholder="Fiyat" value={editingCar.pricePerDay} onChange={e => setEditingCar({...editingCar, pricePerDay: e.target.value})} className={`${inputClass} text-primary-600`} />
+
+                    {/* Araç Bilgileri */}
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Marka & Model</label>
+                            <div className="flex gap-2">
+                                <input type="text" placeholder="Marka" value={editingCar.brand} onChange={e => setEditingCar({...editingCar, brand: e.target.value})} className={inputClass} />
+                                <input type="text" placeholder="Model" value={editingCar.model} onChange={e => setEditingCar({...editingCar, model: e.target.value})} className={inputClass} />
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Yıl & Vites</label>
+                            <div className="flex gap-2">
+                                <input type="number" placeholder="Yıl" value={editingCar.year} onChange={e => setEditingCar({...editingCar, year: e.target.value})} className={inputClass} />
+                                <select value={editingCar.transmission} onChange={e => setEditingCar({...editingCar, transmission: e.target.value})} className={inputClass}>
+                                    <option value="Otomatik">Otomatik</option>
+                                    <option value="Manuel">Manuel</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex gap-4 pt-4">
-                        <button type="button" onClick={() => setEditingCar(null)} className="flex-1 px-6 py-4 rounded-[10px] border border-gray-200 font-bold text-xs uppercase">İPTAL</button>
-                        <button type="submit" className="flex-[2] px-6 py-4 rounded-[10px] bg-primary-600 text-white font-bold text-xs uppercase shadow-lg shadow-primary-500/10">KAYDET</button>
+
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Günlük Ücret (₺)</label>
+                        <input type="number" placeholder="Günlük Ücret" value={editingCar.pricePerDay} onChange={e => setEditingCar({...editingCar, pricePerDay: e.target.value})} className={`${inputClass} text-primary-600 text-xl`} />
+                    </div>
+
+                    <div className="flex gap-4 pt-6">
+                        <button type="button" onClick={() => setEditingCar(null)} className="flex-1 px-6 py-4 rounded-[10px] border border-gray-200 dark:border-gray-700 font-black text-[10px] uppercase tracking-widest">İPTAL</button>
+                        <button type="submit" className="flex-[2] px-6 py-4 rounded-[10px] bg-primary-600 text-white font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary-500/20 active:scale-95 transition-all">DEĞİŞİKLİKLERİ KAYDET</button>
                     </div>
                 </form>
             </div>
@@ -195,7 +317,7 @@ const ProfilePage = () => {
                  <div className="animate-in fade-in slide-in-from-bottom-4">
                     <div className="flex justify-between items-center mb-10">
                       <h2 className="text-3xl font-black text-gray-900 dark:text-white uppercase tracking-tighter">Araçlarım</h2>
-                      <button onClick={() => navigate('/list-car')} className="flex items-center gap-2 bg-primary-600 text-white px-6 py-3 rounded-[10px] font-bold text-xs uppercase shadow-lg">
+                      <button onClick={() => navigate('/list-car')} className="flex items-center gap-2 bg-primary-600 text-white px-6 py-3 rounded-[10px] font-bold text-xs uppercase shadow-lg active:scale-95 transition-all">
                          <PlusCircle size={18} /> Yeni İlan
                       </button>
                     </div>
@@ -208,20 +330,23 @@ const ProfilePage = () => {
                     ) : (
                       <div className="grid md:grid-cols-2 gap-8">
                         {myCars.map(car => (
-                          <div key={car.id} className={`bg-white dark:bg-gray-800 rounded-[10px] border dark:border-gray-700 overflow-hidden relative shadow-sm transition-all ${car.status === 'Paused' ? 'opacity-60 grayscale' : ''}`}>
-                             <div className="h-44 relative">
-                                <img src={car.image} className="w-full h-full object-cover" />
-                                <div className={`absolute top-4 left-4 px-3 py-1.5 rounded-[10px] text-[10px] font-black border ${car.status === 'Paused' ? 'bg-yellow-50 text-yellow-600 border-yellow-100' : 'bg-green-50 text-green-600 border-green-100'}`}>
+                          <div key={car.id} className={`bg-white dark:bg-gray-800 rounded-[10px] border dark:border-gray-700 overflow-hidden relative shadow-sm transition-all hover:border-primary-100 ${car.status === 'Paused' ? 'opacity-60 grayscale' : ''}`}>
+                             <div className="h-44 relative group">
+                                <img src={car.image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                <div className={`absolute top-4 left-4 px-3 py-1.5 rounded-[10px] text-[10px] font-black border backdrop-blur-md ${car.status === 'Paused' ? 'bg-yellow-50/80 text-yellow-600 border-yellow-100' : 'bg-green-50/80 text-green-600 border-green-100'}`}>
                                   {car.status === 'Paused' ? 'DURAKLATILDI' : 'YAYINDA'}
+                                </div>
+                                <div className="absolute bottom-4 left-4 flex items-center gap-1 bg-black/60 backdrop-blur-md text-white px-3 py-1.5 rounded-[10px] text-[10px] font-black uppercase tracking-widest">
+                                    <MapPin size={12} className="text-primary-400" /> {car.location?.city || 'Konum Yok'}
                                 </div>
                              </div>
                              <div className="p-6">
-                                <h4 className="text-xl font-black uppercase text-gray-900 dark:text-white truncate">{car.brand} {car.model}</h4>
-                                <p className="text-[10px] font-bold text-gray-400 uppercase mt-2">{car.location?.city}</p>
+                                <h4 className="text-xl font-black uppercase text-gray-900 dark:text-white truncate tracking-tighter">{car.brand} {car.model}</h4>
+                                <p className="text-[10px] font-black text-gray-400 uppercase mt-2 tracking-widest">{car.year} • {car.transmission} • ₺{car.pricePerDay}</p>
                                 <div className="mt-6 flex gap-2">
-                                   <button onClick={() => setEditingCar(car)} className="flex-1 bg-gray-100 dark:bg-gray-700 p-3 rounded-[10px] flex items-center justify-center"><Pencil size={18} /></button>
-                                   <button onClick={() => { dbService.toggleCarStatus(car.id); loadData(); }} className="flex-1 bg-gray-100 dark:bg-gray-700 p-3 rounded-[10px] flex items-center justify-center">{car.status === 'Paused' ? <Play size={18} /> : <Pause size={18} />}</button>
-                                   <button onClick={() => handleDeleteCar(car.id, `${car.brand} ${car.model}`)} className="flex-1 bg-red-50 text-red-600 p-3 rounded-[10px] flex items-center justify-center"><Trash2 size={18} /></button>
+                                   <button onClick={() => setEditingCar(car)} className="flex-1 bg-gray-100 dark:bg-gray-700 p-3 rounded-[10px] flex items-center justify-center hover:bg-primary-50 hover:text-primary-600 transition-all" title="Düzenle"><Pencil size={18} /></button>
+                                   <button onClick={() => { dbService.toggleCarStatus(car.id); loadData(); }} className="flex-1 bg-gray-100 dark:bg-gray-700 p-3 rounded-[10px] flex items-center justify-center hover:bg-gray-200 transition-all" title="Duraklat/Yayınla">{car.status === 'Paused' ? <Play size={18} /> : <Pause size={18} />}</button>
+                                   <button onClick={() => handleDeleteCar(car.id, `${car.brand} ${car.model}`)} className="flex-1 bg-red-50 text-red-600 p-3 rounded-[10px] flex items-center justify-center hover:bg-red-600 hover:text-white transition-all" title="Sil"><Trash2 size={18} /></button>
                                 </div>
                              </div>
                           </div>
@@ -249,7 +374,7 @@ const ProfilePage = () => {
                                         <p className="text-sm text-gray-500 mt-1">{n.message}</p>
                                         <span className="text-[10px] font-bold text-gray-400 mt-3 block uppercase">{n.time}</span>
                                     </div>
-                                    {!n.read && <div className="w-2 h-2 bg-primary-600 rounded-full mt-2"></div>}
+                                    {!n.read && <div className="w-2 h-2 bg-primary-600 rounded-full mt-2 animate-pulse"></div>}
                                 </div>
                             ))
                         )}
@@ -262,14 +387,14 @@ const ProfilePage = () => {
                 <div className="animate-in fade-in slide-in-from-bottom-4">
                     <div className="flex justify-between items-center mb-10">
                         <h2 className="text-3xl font-black uppercase tracking-tighter">Ödemeler</h2>
-                        <button onClick={() => setShowPaymentModal(true)} className="bg-primary-600 text-white px-6 py-3 rounded-[10px] font-bold text-xs uppercase flex items-center gap-2">
+                        <button onClick={() => setShowPaymentModal(true)} className="bg-primary-600 text-white px-6 py-3 rounded-[10px] font-bold text-xs uppercase flex items-center gap-2 shadow-lg shadow-primary-500/20 active:scale-95 transition-all">
                             <Plus size={16}/> Kart Ekle
                         </button>
                     </div>
                     <div className="grid md:grid-cols-2 gap-6">
                         {payments.map(p => (
                             <div key={p.id} className="p-8 bg-gradient-to-br from-gray-900 to-gray-800 rounded-[10px] text-white relative overflow-hidden group shadow-lg">
-                                <CardIcon size={40} className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-150 transition-transform" />
+                                <CardIcon size={40} className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-150 transition-transform duration-700" />
                                 <div className="flex justify-between items-start mb-12">
                                     <div className="bg-white/20 px-3 py-1 rounded-[10px] text-[10px] font-black tracking-widest">{p.brand}</div>
                                     {p.isDefault && <CheckCircle size={20} className="text-primary-400" />}
@@ -363,7 +488,7 @@ const ProfilePage = () => {
                             <Phone size={40} className="text-gray-400 mb-6" />
                             <h4 className="font-black text-sm uppercase">Telefon Numarası</h4>
                             <p className="text-[10px] font-black text-gray-400 mt-2 mb-6 uppercase tracking-widest">BEKLENİYOR</p>
-                            <button onClick={() => alert('Kod gönderildi!')} className="bg-gray-900 dark:bg-gray-100 dark:text-gray-900 text-white px-8 py-3 rounded-[10px] font-black text-[10px] uppercase shadow-lg">SMS GÖNDER</button>
+                            <button onClick={() => alert('Kod gönderildi!')} className="bg-gray-900 dark:bg-gray-100 dark:text-gray-900 text-white px-8 py-3 rounded-[10px] font-black text-[10px] uppercase shadow-lg active:scale-95 transition-all">SMS GÖNDER</button>
                         </div>
                         <div className="p-8 rounded-[10px] border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center shadow-sm lg:col-span-2">
                             <Lock size={40} className="text-gray-400 mb-6" />
