@@ -21,7 +21,12 @@ export const dbService = {
 
   // Araçları Yönet
   getCars: () => {
-    return JSON.parse(localStorage.getItem('myCars') || '[]');
+    try {
+      const cars = localStorage.getItem('myCars');
+      return cars ? JSON.parse(cars) : [];
+    } catch (e) {
+      return [];
+    }
   },
   
   saveCar: (car: any) => {
@@ -44,10 +49,16 @@ export const dbService = {
 
   deleteCar: (id: number | string) => {
     const cars = dbService.getCars();
-    // ID tipini garantiye almak için String kullanıyoruz
+    // ID tipini garantiye almak için String kullanıyoruz ve filter sonucunu kontrol ediyoruz
+    const initialCount = cars.length;
     const updated = cars.filter((c: any) => String(c.id) !== String(id));
-    localStorage.setItem('myCars', JSON.stringify(updated));
-    window.dispatchEvent(new Event('storage'));
+    
+    if (updated.length < initialCount) {
+      localStorage.setItem('myCars', JSON.stringify(updated));
+      window.dispatchEvent(new Event('storage'));
+      return true;
+    }
+    return false;
   },
 
   updateCar: (id: number | string, data: any) => {

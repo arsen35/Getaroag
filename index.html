@@ -22,6 +22,9 @@
               sans: ['Roboto', 'sans-serif'],
               display: ['Montserrat', 'sans-serif'],
             },
+            borderRadius: {
+              'custom': '10px',
+            },
             colors: {
               primary: {
                 50: '#f5f3ff',
@@ -40,19 +43,6 @@
         }
       }
     </script>
-    <script type="importmap">
-    {
-      "imports": {
-        "react": "https://aistudiocdn.com/react@^19.2.1",
-        "react-dom": "https://aistudiocdn.com/react-dom@^19.2.1",
-        "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
-        "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.10.1",
-        "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
-        "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
-        "react/": "https://esm.sh/react@^19.2.2/"
-      }
-    }
-    </script>
     <style>
       body {
         font-family: 'Roboto', sans-serif;
@@ -60,10 +50,18 @@
       h1, h2, h3, h4, .font-display {
         font-family: 'Montserrat', sans-serif;
       }
-      /* Global Shadow Removal */
+      /* Global UI Overrides */
       * {
         box-shadow: none !important;
       }
+      /* Ensure 10px radius across common components */
+      .rounded-2xl, .rounded-3xl, .rounded-\[2\.5rem\], .rounded-\[5px\] {
+        border-radius: 10px !important;
+      }
+      input, button, select, .card {
+        border-radius: 10px !important;
+      }
+      
       .custom-scrollbar::-webkit-scrollbar {
         width: 6px;
       }
@@ -85,7 +83,7 @@
         background: #A322DA;
         color: white;
         padding: 7px 16px;
-        border-radius: 30px;
+        border-radius: 10px;
         font-size: 14px;
         font-weight: 700;
         border: 2px solid white;
@@ -112,7 +110,19 @@
         animation: scan-line 2s ease-in-out infinite;
       }
     </style>
-  </head>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom": "https://esm.sh/react-dom@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.12.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0"
+  }
+}
+</script>
+</head>
   <body class="bg-white text-gray-900 antialiased dark:bg-gray-950 dark:text-gray-100 transition-colors duration-300">
     <div id="root"></div>
   </body>
