@@ -53,13 +53,11 @@ const Navbar = () => {
   const isLoggedIn = checkAuthStatus();
   const { theme, toggleTheme } = useTheme();
   
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const profileMenuRef = useRef<HTMLDivElement>(null);
-  const notificationRef = useRef<HTMLDivElement>(null);
 
   const loadData = () => {
     const profile = dbService.getProfile();
@@ -76,9 +74,6 @@ const Navbar = () => {
     const handleClickOutside = (event: MouseEvent) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
         setShowProfileMenu(false);
-      }
-      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
-        setShowNotifications(false);
       }
     };
 
@@ -123,16 +118,14 @@ const Navbar = () => {
                     <MessageSquare size={20} />
                   </Link>
                   
-                  <div className="relative" ref={notificationRef}>
-                    <button onClick={() => navigate('/profile?tab=notifications')} className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 rounded-full relative transition-all active:scale-90">
-                      <Bell size={20} />
-                      {unreadCount > 0 && (
-                        <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-primary-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white dark:border-gray-900 animate-in zoom-in">
-                          {unreadCount}
-                        </span>
-                      )}
-                    </button>
-                  </div>
+                  <button onClick={() => navigate('/profile?tab=notifications')} className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 rounded-full relative transition-all active:scale-90">
+                    <Bell size={20} />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-primary-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white dark:border-gray-900 animate-in zoom-in">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
 
                   <Link to="/dashboard" className={`text-gray-600 dark:text-gray-300 hover:text-primary-600 font-black text-[10px] uppercase tracking-widest px-3 py-2 flex items-center gap-2 border-2 border-transparent hover:border-primary-100 rounded-2xl transition-all ${isActive('/dashboard') ? 'text-primary-600 bg-primary-50 dark:bg-primary-900/20' : ''}`}>
                     <LayoutDashboard size={18} /> Panel
@@ -160,7 +153,7 @@ const Navbar = () => {
                     </button>
 
                     {showProfileMenu && (
-                      <div className="absolute right-0 mt-3 w-72 bg-white dark:bg-gray-800 rounded-[2rem] shadow-2xl border dark:border-gray-700 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                      <div className="absolute right-0 mt-3 w-72 bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border dark:border-gray-700 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                         <div className="p-6 bg-gray-50 dark:bg-gray-700/50 flex items-center gap-4">
                           <div className="w-12 h-12 rounded-full bg-primary-600 flex items-center justify-center text-white font-black text-xl overflow-hidden shadow-inner">
                             {user?.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : user?.name?.[0]}
@@ -181,10 +174,6 @@ const Navbar = () => {
                            <button onClick={() => { navigate('/profile?tab=rentals'); setShowProfileMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                               <Clock size={18} className="text-gray-400" />
                               <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Kiralamalarım</span>
-                           </button>
-                           <button onClick={() => { navigate('/messages'); setShowProfileMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                              <MessageSquare size={18} className="text-gray-400" />
-                              <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Mesajlar</span>
                            </button>
                            <button onClick={() => { navigate('/profile?tab=payments'); setShowProfileMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b dark:border-gray-700 pb-4 mb-2">
                               <CreditCard size={18} className="text-gray-400" />
@@ -220,6 +209,10 @@ const Navbar = () => {
             </span>
           </Link>
           <div className="flex items-center gap-2">
+            <button onClick={() => navigate('/profile?tab=notifications')} className="p-2 text-gray-600 relative">
+               <Bell size={20} />
+               {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-3 h-3 bg-primary-600 rounded-full border-2 border-white"></span>}
+            </button>
             <button onClick={toggleTheme} className="p-2 text-gray-600 dark:text-gray-300">{theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}</button>
           </div>
       </div>

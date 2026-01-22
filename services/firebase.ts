@@ -6,7 +6,7 @@ export const checkAuthStatus = (): boolean => {
 export const dbService = {
   getProfile: () => {
     const data = localStorage.getItem('userProfile');
-    return data ? JSON.parse(data) : { name: "Kullanıcı", surname: "", isVerified: false };
+    return data ? JSON.parse(data) : { name: "Kullanıcı", surname: "", isVerified: false, phone: "", email: "user@example.com" };
   },
   
   updateProfile: (data: any) => {
@@ -17,18 +17,12 @@ export const dbService = {
   getCars: () => {
     try {
       const cars = localStorage.getItem('myCars');
-      return cars ? JSON.parse(cars) : [];
+      const parsed = cars ? JSON.parse(cars) : [];
+      return Array.isArray(parsed) ? parsed : [];
     } catch (e) { return []; }
   },
   
-  saveCar: (car: any) => {
-    const cars = dbService.getCars();
-    const updated = [...cars, { ...car, status: 'Active' }];
-    localStorage.setItem('myCars', JSON.stringify(updated));
-    window.dispatchEvent(new Event('storage'));
-  },
-
-  // KESİN SİLME: ID tipini eşitle ve listeyi temizle
+  // KESİN SİLME FONKSİYONU
   deleteCar: (id: number | string) => {
     const cars = dbService.getCars();
     const updated = cars.filter((c: any) => String(c.id) !== String(id));
@@ -60,10 +54,7 @@ export const dbService = {
 
   getTrips: () => {
     const data = localStorage.getItem('myTrips');
-    return data ? JSON.parse(data) : [
-      { id: 1, carName: 'Tesla Model Y', carImage: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89?auto=format&fit=crop&w=400', status: 'Tamamlandı', date: '12 Haz 2024', price: 3200 },
-      { id: 2, carName: 'Fiat Egea', carImage: 'https://images.unsplash.com/photo-1503376763036-066120622c74?auto=format&fit=crop&w=400', status: 'Yaklaşan', date: '25 Tem 2024', price: 1100 }
-    ];
+    return data ? JSON.parse(data) : [];
   },
 
   getPaymentMethods: () => {
@@ -73,17 +64,30 @@ export const dbService = {
     ];
   },
 
+  addPaymentMethod: (card: any) => {
+    const methods = dbService.getPaymentMethods();
+    const updated = [...methods, { ...card, id: Date.now() }];
+    localStorage.setItem('paymentMethods', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+  },
+
   getNotifications: () => {
     const data = localStorage.getItem('notifications');
     return data ? JSON.parse(data) : [
-      { id: 1, title: "Hoş Geldiniz!", message: "Getaroag ailesine katıldığınız için teşekkürler.", time: "2 gün önce", read: true, type: "info" },
-      { id: 2, title: "Yeni Mesaj", message: "Murat Aras kiralama için soru sordu.", time: "1 saat önce", read: false, type: "message" }
+      { id: 1, title: "Hoş Geldiniz!", message: "Getaroag dünyasına ilk adımınızı attınız.", time: "Şimdi", read: false, type: "info" }
     ];
+  },
+
+  markNotificationRead: (id: number) => {
+    const list = dbService.getNotifications();
+    const updated = list.map((n: any) => n.id === id ? { ...n, read: true } : n);
+    localStorage.setItem('notifications', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
   },
 
   addNotification: (notif: any) => {
     const list = dbService.getNotifications();
-    const updated = [notif, ...list].slice(0, 15);
+    const updated = [{ ...notif, id: Date.now(), read: false }, ...list].slice(0, 15);
     localStorage.setItem('notifications', JSON.stringify(updated));
     window.dispatchEvent(new Event('storage'));
   }
