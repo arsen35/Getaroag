@@ -42,6 +42,20 @@ export const dbService = {
     window.dispatchEvent(new Event('storage'));
   },
 
+  deleteCar: (id: number | string) => {
+    const cars = dbService.getCars();
+    const updated = cars.filter((c: any) => c.id !== id);
+    localStorage.setItem('myCars', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+  },
+
+  updateCar: (id: number | string, data: any) => {
+    const cars = dbService.getCars();
+    const updated = cars.map((c: any) => c.id === id ? { ...c, ...data } : c);
+    localStorage.setItem('myCars', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+  },
+
   // Kiralamaları (Yolculukları) Yönet
   getTrips: () => {
     return JSON.parse(localStorage.getItem('myTrips') || '[]');
