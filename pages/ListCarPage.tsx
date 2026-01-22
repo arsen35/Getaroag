@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { Fuel, Settings, CheckCircle, Navigation, Upload, DollarSign, Camera, MapPin, X, Plus, Search, Map as MapIcon, Check, AlertCircle, Move, ChevronRight } from 'lucide-react';
 import { CAR_BRANDS } from '../data/cars';
-import { checkAuthStatus } from '../services/firebase';
+// Added dbService to imports
+import { checkAuthStatus, dbService } from '../services/firebase';
 
 declare const L: any; // Leaflet Global
 
@@ -109,7 +111,7 @@ const ListCarPage = () => {
             alert("Girdiğiniz adres bulunamadı. Lütfen haritadan manuel seçin.");
         }
     } catch (e) {
-        alert("Konum servisine şu an ulaşılamıyor. Lütfen haritaya dokunarak seçin.");
+        alert("Konum servisine şu an ulaşılamıyor.");
     } finally {
         setIsLocating(false);
     }
@@ -122,7 +124,6 @@ const ListCarPage = () => {
     navigator.geolocation.getCurrentPosition(async (pos) => {
       const { latitude, longitude } = pos.coords;
       
-      // Reverse Geocode to fill City/District
       try {
           const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=tr`);
           const data = await response.json();
@@ -147,7 +148,7 @@ const ListCarPage = () => {
       setIsLocating(false);
     }, (err) => {
       setIsLocating(false);
-      alert("Konum izni alınamadı veya GPS çekmiyor. Lütfen şehri manuel seçin.");
+      alert("GPS çekmiyor. Lütfen şehri manuel seçin.");
     }, { enableHighAccuracy: true });
   };
 
@@ -166,9 +167,8 @@ const ListCarPage = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!locationVerified) return alert("Lütfen haritadan konumu kesinleştirin veya doğrula butonuna basın.");
+    if (!locationVerified) return alert("Lütfen haritadan konumu kesinleştirin.");
     
-    // Araç bilgilerini kaydetme mantığı (Profile sayfasındaki logic ile aynı)
     const newCar = {
       id: Date.now(),
       name: `${formData.brand} ${formData.model}`,
@@ -195,32 +195,43 @@ const ListCarPage = () => {
     const stored = localStorage.getItem('myCars');
     const existing = stored ? JSON.parse(stored) : [];
     localStorage.setItem('myCars', JSON.stringify([...existing, newCar]));
+    
+    // Using dbService from imports
+    dbService.addNotification({
+        id: Date.now(),
+        title: 'İlan Başarıyla Yayınlandı',
+        message: `${newCar.brand} ${newCar.model} aracınız artık kiraya hazır.`,
+        time: 'Az önce',
+        read: false,
+        type: 'success'
+    });
+
     window.dispatchEvent(new Event('storage'));
     alert("Tebrikler! Aracınız başarıyla listelendi.");
-    navigate('/profile');
+    navigate('/profile?tab=cars');
   };
 
-  const inputClassName = "w-full p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white font-bold transition-all shadow-sm";
+  const inputClassName = "w-full p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-[5px] focus:ring-1 focus:ring-primary-500 outline-none text-gray-900 dark:text-white font-bold transition-all shadow-sm";
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 font-sans pb-24 md:pb-0">
       <Navbar />
       <div className="container mx-auto px-4 py-12">
-        <div className="max-w-3xl mx-auto bg-white dark:bg-gray-900 rounded-[2.5rem] shadow-2xl dark:shadow-none border border-gray-100 dark:border-gray-800 overflow-hidden">
-          <div className="p-8 md:p-12">
+        <div className="max-w-3xl mx-auto bg-white dark:bg-gray-900 rounded-[5px] border border-gray-100 dark:border-gray-800 overflow-hidden text-left">
+          <div className="p-8 md:p-12 text-left">
             <div className="flex justify-between items-center mb-8">
                 <div>
-                    <h1 className="text-3xl font-black text-gray-900 dark:text-white">Aracını Listele</h1>
-                    <p className="text-gray-500 text-xs font-black uppercase tracking-widest mt-1">ADIM {step}/4</p>
+                    <h1 className="text-3xl font-black text-gray-900 dark:text-white uppercase tracking-tighter">Aracını Listele</h1>
+                    <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mt-1">ADIM {step}/4</p>
                 </div>
                 {step > 1 && (
-                    <button onClick={() => setStep(step - 1)} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-2xl text-gray-400 hover:text-primary-600 transition-colors">
+                    <button onClick={() => setStep(step - 1)} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-[5px] text-gray-400 hover:text-primary-600 transition-colors">
                         <X size={20} />
                     </button>
                 )}
             </div>
 
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} className="text-left">
               {/* STEP 1: LOCATION */}
               {step === 1 && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -253,21 +264,16 @@ const ListCarPage = () => {
                       </div>
                   </div>
 
-                  <div className="relative w-full aspect-video md:aspect-[21/9] rounded-[2rem] overflow-hidden border-4 border-gray-50 dark:border-gray-800 bg-gray-100 shadow-inner z-0 group">
+                  <div className="relative w-full aspect-video md:aspect-[21/9] rounded-[5px] overflow-hidden border border-gray-100 dark:border-gray-800 bg-gray-100 z-0 group">
                       <div ref={mapContainerRef} className="w-full h-full" />
                       {!locationVerified && (
-                         <div className="absolute inset-0 bg-black/5 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center pointer-events-none transition-all group-hover:backdrop-blur-none group-hover:bg-transparent">
-                            <div className="bg-white/95 dark:bg-gray-800/95 px-8 py-5 rounded-[2rem] shadow-2xl flex flex-col items-center gap-3 border border-gray-100 dark:border-gray-700">
-                               <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center text-primary-600 animate-bounce">
-                                  <MapIcon size={24}/>
-                               </div>
-                               <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">KONUMU DOĞRULAYIN</p>
+                         <div className="absolute inset-0 bg-black/5 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center pointer-events-none transition-all">
+                            <div className="bg-white/95 dark:bg-gray-800/95 px-8 py-5 rounded-[5px] border border-gray-100 dark:border-gray-700 flex flex-col items-center gap-3">
+                               <MapIcon size={24} className="text-primary-600 animate-bounce"/>
+                               <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">KONUMU DOĞRULAYIN</p>
                             </div>
                          </div>
                       )}
-                      <div className="absolute bottom-4 right-4 z-20 bg-white/90 dark:bg-gray-800/90 p-2 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 text-[10px] font-bold text-gray-400 uppercase pointer-events-none">
-                          Haritaya dokunarak işaretle
-                      </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -275,17 +281,17 @@ const ListCarPage = () => {
                         type="button" 
                         onClick={handleCurrentLocation} 
                         disabled={isLocating}
-                        className="bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 p-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                        className="bg-gray-50 dark:bg-gray-800 p-4 rounded-[5px] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 border border-gray-100 dark:border-gray-700"
                       >
                         <Navigation size={18} className={isLocating ? "animate-spin" : ""}/> 
-                        {isLocating ? "Bulunuyor..." : "Mevcut Konumum"}
+                        Mevcut Konum
                       </button>
                       <button 
                         type="button" 
                         onClick={verifyLocation} 
-                        className="bg-primary-600 text-white p-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:bg-primary-700 shadow-xl shadow-primary-600/20 active:scale-95"
+                        className="bg-primary-600 text-white p-4 rounded-[5px] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:bg-primary-700 active:scale-95"
                       >
-                        <MapPin size={18}/> Adresi Doğrula
+                        <MapPin size={18}/> Doğrula
                       </button>
                   </div>
 
@@ -293,9 +299,9 @@ const ListCarPage = () => {
                     type="button" 
                     disabled={!locationVerified || !formData.city} 
                     onClick={() => setStep(2)} 
-                    className="w-full bg-gray-900 dark:bg-primary-600 disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white py-5 rounded-2xl font-black text-lg mt-8 flex items-center justify-center gap-3 transition-all active:scale-95 shadow-2xl"
+                    className="w-full bg-gray-900 dark:bg-primary-600 disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white py-5 rounded-[5px] font-black text-sm uppercase tracking-widest mt-8 flex items-center justify-center gap-3 transition-all active:scale-95 border border-transparent"
                   >
-                    Devam Et <ChevronRight size={22} />
+                    Devam Et <ChevronRight size={18} />
                   </button>
                 </div>
               )}
@@ -315,7 +321,7 @@ const ListCarPage = () => {
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Yıl</label>
                             <select className={inputClassName} value={formData.year} onChange={(e) => setFormData({...formData, year: e.target.value})}>
                                 <option value="">Yıl</option>
-                                {[2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015].map(y => <option key={y} value={y}>{y}</option>)}
+                                {[2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015].map(y => <option key={y} value={y}>{y}</option>)}
                             </select>
                         </div>
                     </div>
@@ -326,7 +332,7 @@ const ListCarPage = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
+                        <div className="space-y-1 text-left">
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Vites</label>
                             <select className={inputClassName} value={formData.transmission} onChange={(e) => setFormData({...formData, transmission: e.target.value})}>
                                 <option value="">Seçiniz</option>
@@ -334,7 +340,7 @@ const ListCarPage = () => {
                                 <option value="Manuel">Manuel</option>
                             </select>
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-1 text-left">
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Yakıt</label>
                             <select className={inputClassName} value={formData.fuelType} onChange={(e) => setFormData({...formData, fuelType: e.target.value})}>
                                 <option value="">Seçiniz</option>
@@ -350,47 +356,44 @@ const ListCarPage = () => {
                       type="button" 
                       disabled={!formData.brand || !formData.model || !formData.year} 
                       onClick={() => setStep(3)} 
-                      className="w-full bg-gray-900 dark:bg-primary-600 disabled:bg-gray-200 dark:disabled:bg-gray-800 text-white py-5 rounded-2xl font-black text-lg mt-8 flex items-center justify-center gap-3 transition-all active:scale-95 shadow-2xl"
+                      className="w-full bg-gray-900 dark:bg-primary-600 disabled:bg-gray-200 dark:disabled:bg-gray-800 text-white py-5 rounded-[5px] font-black text-sm uppercase mt-8 flex items-center justify-center gap-3 transition-all active:scale-95"
                     >
-                      Sonraki Adım <ChevronRight size={22} />
+                      Sonraki Adım <ChevronRight size={18} />
                     </button>
                 </div>
               )}
 
               {/* STEP 3: PHOTOS & PRICE */}
               {step === 3 && (
-                  <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+                  <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 text-left">
                       <div className="space-y-3">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Araç Fotoğrafları (En fazla 5)</label>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Araç Fotoğrafları</label>
                         <div 
                           onClick={() => fileInputRef.current?.click()}
-                          className="w-full h-48 border-4 border-dashed border-gray-100 dark:border-gray-800 rounded-[2.5rem] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-all group"
+                          className="w-full h-48 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-[5px] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-all group"
                         >
                             <input type="file" multiple ref={fileInputRef} onChange={handleImageUpload} className="hidden" accept="image/*" />
-                            <div className="w-16 h-16 bg-primary-50 dark:bg-primary-900/30 text-primary-600 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                                <Camera size={28} />
-                            </div>
-                            <span className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-wider">Fotoğraf Ekle</span>
-                            <span className="text-[10px] text-gray-400 font-bold mt-1">Sürükle bırak veya tıkla</span>
+                            <Camera size={28} className="text-primary-600 mb-2"/>
+                            <span className="text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-widest">Fotoğraf Ekle</span>
                         </div>
 
                         <div className="grid grid-cols-5 gap-2 mt-4">
                             {formData.images.map((img, i) => (
-                                <div key={i} className="relative aspect-square rounded-xl overflow-hidden border-2 border-white dark:border-gray-800 shadow-md">
+                                <div key={i} className="relative aspect-square rounded-[5px] overflow-hidden border border-gray-100 dark:border-gray-700">
                                     <img src={img} className="w-full h-full object-cover" />
                                     <button 
                                       type="button" 
                                       onClick={() => setFormData(prev => ({ ...prev, images: prev.images.filter((_, idx) => idx !== i) }))}
-                                      className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full shadow-lg"
+                                      className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-[3px]"
                                     >
-                                        <X size={10} />
+                                        <X size={8} />
                                     </button>
                                 </div>
                             ))}
                         </div>
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-2 text-left">
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Günlük Kiralama Bedeli</label>
                         <div className="relative">
                             <div className="absolute left-5 top-1/2 -translate-y-1/2 text-2xl font-black text-primary-600">₺</div>
@@ -401,12 +404,11 @@ const ListCarPage = () => {
                               value={formData.pricePerDay} 
                               onChange={(e) => setFormData({...formData, pricePerDay: e.target.value})} 
                             />
-                            <div className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm uppercase">/ GÜN</div>
                         </div>
-                        <div className="bg-primary-50 dark:bg-primary-900/20 p-4 rounded-2xl border border-primary-100 dark:border-primary-900/30 flex items-start gap-3 mt-2">
-                            <AlertCircle size={18} className="text-primary-600 shrink-0 mt-0.5" />
-                            <p className="text-[10px] text-primary-800 dark:text-primary-300 font-bold leading-relaxed uppercase tracking-wider">
-                                Önerilen fiyat aralığı: ₺800 - ₺2.500 arasındadır. Fiyatınızı rekabetçi tutarak daha çok kiralama alabilirsiniz.
+                        <div className="bg-primary-50 dark:bg-primary-900/20 p-4 rounded-[5px] border border-primary-100 dark:border-primary-900/30 flex items-start gap-3 mt-2">
+                            <AlertCircle size={16} className="text-primary-600 shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-primary-800 dark:text-primary-300 font-bold uppercase tracking-widest text-left">
+                                Önerilen fiyat aralığı: ₺800 - ₺2.500 arasındadır.
                             </p>
                         </div>
                       </div>
@@ -415,58 +417,49 @@ const ListCarPage = () => {
                         type="button" 
                         disabled={!formData.pricePerDay || formData.images.length === 0} 
                         onClick={() => setStep(4)} 
-                        className="w-full bg-gray-900 dark:bg-primary-600 disabled:bg-gray-200 dark:disabled:bg-gray-800 text-white py-5 rounded-2xl font-black text-lg mt-8 flex items-center justify-center gap-3 transition-all active:scale-95 shadow-2xl"
+                        className="w-full bg-gray-900 dark:bg-primary-600 disabled:bg-gray-200 dark:disabled:bg-gray-800 text-white py-5 rounded-[5px] font-black text-sm uppercase mt-8 flex items-center justify-center gap-3 active:scale-95"
                       >
-                        Önizlemeyi Gör <ChevronRight size={22} />
+                        Önizleme <ChevronRight size={18} />
                       </button>
                   </div>
               )}
 
               {/* STEP 4: REVIEW & PUBLISH */}
               {step === 4 && (
-                  <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-                      <div className="bg-gray-50 dark:bg-gray-800 rounded-[2rem] overflow-hidden border border-gray-100 dark:border-gray-700">
+                  <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 text-left">
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-[5px] overflow-hidden border border-gray-100 dark:border-gray-700">
                           <img src={formData.images[0]} className="w-full h-56 object-cover" />
                           <div className="p-6">
                               <div className="flex justify-between items-start">
                                   <div>
-                                      <h3 className="text-xl font-black text-gray-900 dark:text-white uppercase">{formData.brand} {formData.model}</h3>
-                                      <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mt-1">{formData.district}, {formData.city}</p>
+                                      <h3 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-tighter">{formData.brand} {formData.model}</h3>
+                                      <p className="text-xs font-bold text-gray-500 mt-1 uppercase">{formData.district}, {formData.city}</p>
                                   </div>
                                   <div className="text-right">
-                                      <p className="text-2xl font-black text-primary-600">₺{formData.pricePerDay}</p>
-                                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">GÜNLÜK ÜCRET</p>
+                                      <p className="text-2xl font-black text-primary-600 leading-none">₺{formData.pricePerDay}</p>
+                                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">GÜNLÜK</p>
                                   </div>
                               </div>
                               <div className="flex gap-4 mt-6 pt-6 border-t dark:border-gray-700">
                                   <div className="flex-1">
                                       <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">VİTES</p>
-                                      <p className="font-bold text-gray-900 dark:text-white">{formData.transmission}</p>
+                                      <p className="font-bold text-xs uppercase text-gray-900 dark:text-white">{formData.transmission}</p>
                                   </div>
                                   <div className="flex-1">
                                       <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">YAKIT</p>
-                                      <p className="font-bold text-gray-900 dark:text-white">{formData.fuelType}</p>
+                                      <p className="font-bold text-xs uppercase text-gray-900 dark:text-white">{formData.fuelType}</p>
                                   </div>
                                   <div className="flex-1">
                                       <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">YIL</p>
-                                      <p className="font-bold text-gray-900 dark:text-white">{formData.year}</p>
+                                      <p className="font-bold text-xs text-gray-900 dark:text-white">{formData.year}</p>
                                   </div>
                               </div>
                           </div>
                       </div>
 
-                      <div className="bg-green-50 dark:bg-green-900/10 p-5 rounded-[2rem] border border-green-100 dark:border-green-900/20 flex items-center gap-4">
-                         <div className="w-12 h-12 bg-white dark:bg-green-900 rounded-full flex items-center justify-center text-green-600 shadow-sm shrink-0">
-                            <Check size={24} strokeWidth={3} />
-                         </div>
-                         <p className="text-xs font-black text-green-800 dark:text-green-300 uppercase tracking-wider leading-relaxed">
-                            Her şey hazır! Aracınız yayınlandığı an kiracılar tarafından görülebilecek.
-                         </p>
-                      </div>
-
                       <button 
                         type="submit" 
-                        className="w-full bg-primary-600 text-white py-5 rounded-2xl font-black text-xl hover:bg-primary-700 transition-all shadow-xl shadow-primary-600/30 flex items-center justify-center gap-3 active:scale-95"
+                        className="w-full bg-primary-600 text-white py-5 rounded-[5px] font-black text-xl uppercase tracking-widest active:scale-95 transition-all"
                       >
                         İlanı Yayınla
                       </button>

@@ -44,14 +44,15 @@ export const dbService = {
 
   deleteCar: (id: number | string) => {
     const cars = dbService.getCars();
-    const updated = cars.filter((c: any) => c.id !== id);
+    // ID tipini garantiye almak için String kullanıyoruz
+    const updated = cars.filter((c: any) => String(c.id) !== String(id));
     localStorage.setItem('myCars', JSON.stringify(updated));
     window.dispatchEvent(new Event('storage'));
   },
 
   updateCar: (id: number | string, data: any) => {
     const cars = dbService.getCars();
-    const updated = cars.map((c: any) => c.id === id ? { ...c, ...data } : c);
+    const updated = cars.map((c: any) => String(c.id) === String(id) ? { ...c, ...data } : c);
     localStorage.setItem('myCars', JSON.stringify(updated));
     window.dispatchEvent(new Event('storage'));
   },
