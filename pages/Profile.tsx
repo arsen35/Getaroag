@@ -58,12 +58,7 @@ const ProfilePage = () => {
   const [editingCar, setEditingCar] = useState<any>(null);
   const editPhotoRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const idInputRef = useRef<HTMLInputElement>(null);
-  const licenseInputRef = useRef<HTMLInputElement>(null);
   
-  const [idPhoto, setIdPhoto] = useState<string | null>(null);
-  const [licensePhoto, setLicensePhoto] = useState<string | null>(null);
-
   const loadAllData = () => {
     const profile = dbService.getProfile();
     if (profile) {
@@ -83,7 +78,6 @@ const ProfilePage = () => {
   useEffect(() => {
     if (!checkAuthStatus()) { navigate('/login'); return; }
     loadAllData();
-    // Storage değişikliklerini dinle
     window.addEventListener('storage', loadAllData);
     return () => window.removeEventListener('storage', loadAllData);
   }, [navigate]);
@@ -97,7 +91,7 @@ const ProfilePage = () => {
       dbService.addNotification({
         id: Date.now(),
         title: 'Profil Güncellendi',
-        message: 'Bilgileriniz kaydedildi.',
+        message: 'Kişisel bilgileriniz kaydedildi.',
         time: 'Az önce',
         read: false,
         type: 'info'
@@ -109,12 +103,13 @@ const ProfilePage = () => {
   const handleDeleteCar = (id: number | string, name: string) => {
     if (window.confirm(`${name} ilanını kalıcı olarak silmek istediğinizden emin misiniz?`)) {
         dbService.deleteCar(id);
-        // State'i anında filtrele
-        setMyCars(prev => prev.filter(c => String(c.id) !== String(id)));
+        // State'i anında güncelleyerek UI'da kaybolmasını sağla
+        setMyCars(dbService.getCars());
+        
         dbService.addNotification({
             id: Date.now(),
             title: 'İlan Silindi',
-            message: `${name} ilanınız başarıyla kaldırıldı.`,
+            message: `${name} ilanınız sistemden kaldırıldı.`,
             time: 'Az önce',
             read: false,
             type: 'info'
@@ -122,20 +117,21 @@ const ProfilePage = () => {
     }
   };
 
-  // DURAKLATMA ÇÖZÜMÜ
+  // İLAN DURAKLATMA / DONDURMA
   const handleToggleCarStatus = (id: number | string, currentStatus: string) => {
     dbService.toggleCarStatus(id);
     const newStatus = currentStatus === 'Active' ? 'Paused' : 'Active';
-    setMyCars(prev => prev.map(c => String(c.id) === String(id) ? { ...c, status: newStatus } : c));
     
     dbService.addNotification({
         id: Date.now(),
-        title: newStatus === 'Paused' ? 'İlan Duraklatıldı' : 'İlan Yayına Alındı',
-        message: `Aracınız artık ${newStatus === 'Paused' ? 'kiralanamaz' : 'kiralanabilir'} durumdadır.`,
+        title: newStatus === 'Paused' ? 'İlan Donduruldu' : 'İlan Yayında',
+        message: `Aracınız artık ${newStatus === 'Paused' ? 'arama sonuçlarında görünmeyecek' : 'tekrar kiralanabilir'} durumda.`,
         time: 'Az önce',
         read: false,
         type: 'info'
     });
+    
+    loadAllData(); // Veriyi tazele
   };
 
   const handleUpdateCarSubmit = (e: React.FormEvent) => {
@@ -168,7 +164,6 @@ const ProfilePage = () => {
     { id: 'cars', label: 'Araçlarım', icon: Car },
     { id: 'notifications', label: 'Bildirimler', icon: Bell, badge: notifications.filter(n => !n.read).length },
     { id: 'payments', label: 'Ödeme Yöntemleri', icon: CreditCard },
-    { id: 'credit', label: '₺500 Kredi Kazan', icon: Gift },
   ];
 
   const inputClass = "w-full p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-[10px] focus:ring-1 focus:ring-primary-500 outline-none text-gray-900 dark:text-white font-medium transition-all text-sm";
@@ -177,7 +172,7 @@ const ProfilePage = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 font-sans transition-colors duration-300 pb-24">
       <Navbar />
 
-      {/* --- KAPSAMLI EDİT MODAL --- */}
+      {/* --- KAPSAMLI EDİT MODAL (10PX RADIUS) --- */}
       {editingCar && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in overflow-y-auto">
             <div className="bg-white dark:bg-gray-900 rounded-[10px] border dark:border-gray-800 p-8 w-full max-w-2xl animate-in zoom-in-95 my-auto">
@@ -268,6 +263,70 @@ const ProfilePage = () => {
           <main className="flex-1">
             <div className="bg-white dark:bg-gray-900 rounded-[10px] border border-gray-100 dark:border-gray-800 p-8 md:p-12 min-h-[600px]">
               
+              {/* --- CARS TAB (10PX RADIUS & SİLME/DONDURMA) --- */}
+              {activeTab === 'cars' && (
+                 <div className="animate-in fade-in slide-in-from-bottom-4">
+                    <div className="flex justify-between items-center mb-10 text-left">
+                      <h2 className="text-3xl font-bold text-gray-900 dark:text-white uppercase tracking-tighter">Araçlarım</h2>
+                      <button onClick={() => navigate('/list-car')} className="flex items-center gap-2 bg-primary-600 text-white px-6 py-3 rounded-[10px] font-bold text-xs uppercase border border-primary-500 active:scale-95 transition-all">
+                         <PlusCircle size={18} /> Yeni İlan
+                      </button>
+                    </div>
+
+                    {myCars.length === 0 ? (
+                      <div className="text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-[10px] border-2 border-dashed border-gray-200 dark:border-gray-700">
+                         <Car size={48} className="text-gray-300 mx-auto mb-4" />
+                         <h3 className="text-lg font-bold text-gray-400 mb-6 uppercase tracking-widest">Henüz yayınlanmış bir aracınız yok.</h3>
+                         <button onClick={() => navigate('/list-car')} className="bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 px-8 py-3 rounded-[10px] font-bold uppercase text-xs tracking-widest border border-gray-200 dark:border-gray-600">Hemen aracını listele</button>
+                      </div>
+                    ) : (
+                      <div className="grid md:grid-cols-2 gap-8 text-left">
+                        {myCars.map(car => (
+                          <div key={car.id} className={`bg-white dark:bg-gray-800 rounded-[10px] border overflow-hidden group relative transition-all shadow-sm ${car.status === 'Paused' ? 'grayscale opacity-60 border-gray-300' : 'border-gray-100 hover:border-primary-300'}`}>
+                             <div className="h-48 relative overflow-hidden">
+                                <img src={car.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                <div className={`absolute top-4 left-4 backdrop-blur-md px-3 py-1.5 rounded-[10px] text-[9px] font-bold uppercase tracking-widest border ${car.status === 'Paused' ? 'bg-yellow-50/90 text-yellow-700 border-yellow-200' : 'bg-green-50/90 text-green-600 border-green-100'}`}>
+                                  {car.status === 'Paused' ? 'DURAKLATILDI' : 'YAYINDA'}
+                                </div>
+                             </div>
+                             <div className="p-6 text-left">
+                                <div className="flex justify-between items-start mb-4">
+                                   <div className="flex-1 min-w-0">
+                                      <h4 className="text-lg font-black text-gray-900 dark:text-white uppercase leading-none truncate">{car.brand} {car.model}</h4>
+                                      <p className="text-[10px] font-bold text-gray-400 uppercase mt-2">{car.location?.district}, {car.location?.city}</p>
+                                   </div>
+                                   <div className="text-right">
+                                      <p className="text-lg font-black text-primary-600">₺{car.pricePerDay}</p>
+                                      <p className="text-[8px] font-bold text-gray-400 uppercase">GÜNLÜK</p>
+                                   </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-4 gap-2 mt-6">
+                                   <button onClick={() => navigate('/dashboard')} className="bg-gray-900 text-white p-3 rounded-[10px] flex items-center justify-center hover:bg-black transition-colors" title="İstatistik">
+                                      <TrendingUp size={16} />
+                                   </button>
+                                   <button onClick={() => setEditingCar(car)} className="bg-gray-100 text-gray-600 p-3 rounded-[10px] flex items-center justify-center hover:bg-gray-200 transition-colors" title="Düzenle">
+                                      <Pencil size={16} />
+                                   </button>
+                                   
+                                   {/* DURAKLAT / DEVAM ET */}
+                                   <button onClick={() => handleToggleCarStatus(car.id, car.status)} className={`${car.status === 'Paused' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'} p-3 rounded-[10px] flex items-center justify-center hover:scale-105 transition-all active:scale-95`} title={car.status === 'Paused' ? 'Yayına Al' : 'İlanı Duraklat'}>
+                                      {car.status === 'Paused' ? <Play size={16} /> : <Pause size={16} />}
+                                   </button>
+                                   
+                                   {/* KESİN SİLME */}
+                                   <button onClick={() => handleDeleteCar(car.id, `${car.brand} ${car.model}`)} className="bg-red-100 text-red-600 p-3 rounded-[10px] flex items-center justify-center hover:bg-red-200 transition-colors active:scale-95" title="Kalıcı Olarak Sil">
+                                      <Trash2 size={16} />
+                                   </button>
+                                </div>
+                             </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                 </div>
+              )}
+
               {/* --- EDİT TAB --- */}
               {activeTab === 'edit' && (
                 <div className="animate-in fade-in slide-in-from-bottom-4">
@@ -279,7 +338,7 @@ const ProfilePage = () => {
                         <div className="w-24 h-24 rounded-[10px] bg-primary-600 border border-primary-500 flex items-center justify-center text-white text-3xl font-bold overflow-hidden">
                            {userData?.avatar ? <img src={userData.avatar} className="w-full h-full object-cover" /> : userData?.name?.[0]}
                         </div>
-                        <button onClick={() => fileInputRef.current?.click()} className="absolute -bottom-2 -right-2 bg-white dark:bg-gray-800 p-2.5 rounded-[10px] border border-gray-200 dark:border-gray-700 text-primary-600 hover:scale-105 transition-transform"><Camera size={18} /></button>
+                        <button onClick={() => fileInputRef.current?.click()} className="absolute -bottom-2 -right-2 bg-white dark:bg-gray-800 p-2.5 rounded-[10px] border border-gray-200 dark:border-gray-700 text-primary-600 hover:scale-105 transition-transform shadow-lg"><Camera size={18} /></button>
                         <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => {
                            const file = e.target.files?.[0];
                            if (file) {
@@ -290,8 +349,8 @@ const ProfilePage = () => {
                         }} />
                      </div>
                      <div className="space-y-1 text-left">
-                        <p className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-tight">Kapak Fotoğrafı</p>
-                        <p className="text-xs text-gray-400 font-medium">Bu fotoğraf diğer kullanıcılara görünür.</p>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-tight">Profil Fotoğrafı</p>
+                        <p className="text-xs text-gray-400 font-medium">Bu fotoğraf platformdaki diğer kullanıcılar tarafından görülür.</p>
                      </div>
                   </div>
 
@@ -306,75 +365,13 @@ const ProfilePage = () => {
                         <input type="text" value={userData?.surname || ''} onChange={e => setUserData({...userData, surname: e.target.value})} className={inputClass} />
                       </div>
                     </div>
-                    <button type="submit" disabled={isSaving} className="bg-primary-600 text-white px-10 py-5 rounded-[10px] font-bold text-sm uppercase tracking-widest active:scale-95 flex items-center gap-2 border border-primary-500">
+                    <button type="submit" disabled={isSaving} className="bg-primary-600 text-white px-10 py-5 rounded-[10px] font-bold text-sm uppercase tracking-widest active:scale-95 flex items-center gap-2 border border-primary-500 shadow-xl shadow-primary-500/10">
                        {isSaving && <Loader2 size={18} className="animate-spin" />}
                        {isSaving ? "KAYDEDİLİYOR" : "DEĞİŞİKLİKLERİ KAYDET"}
                     </button>
                   </form>
                 </div>
               )}
-
-              {/* --- CARS TAB --- */}
-              {activeTab === 'cars' && (
-                 <div className="animate-in fade-in slide-in-from-bottom-4">
-                    <div className="flex justify-between items-center mb-10 text-left">
-                      <h2 className="text-3xl font-bold text-gray-900 dark:text-white uppercase tracking-tighter">Araçlarım</h2>
-                      <button onClick={() => navigate('/list-car')} className="flex items-center gap-2 bg-primary-600 text-white px-6 py-3 rounded-[10px] font-bold text-xs uppercase border border-primary-500">
-                         <PlusCircle size={18} /> Yeni İlan
-                      </button>
-                    </div>
-
-                    {myCars.length === 0 ? (
-                      <div className="text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-[10px] border-2 border-dashed border-gray-200 dark:border-gray-700">
-                         <Car size={48} className="text-gray-300 mx-auto mb-4" />
-                         <h3 className="text-lg font-bold text-gray-400 mb-6 uppercase tracking-widest">Henüz yayınlanmış bir aracınız yok.</h3>
-                         <button onClick={() => navigate('/list-car')} className="bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 px-8 py-3 rounded-[10px] font-bold uppercase text-xs tracking-widest border border-gray-200 dark:border-gray-600">Hemen aracını listele</button>
-                      </div>
-                    ) : (
-                      <div className="grid md:grid-cols-2 gap-8 text-left">
-                        {myCars.map(car => (
-                          <div key={car.id} className={`bg-white dark:bg-gray-800 rounded-[10px] border overflow-hidden group relative transition-all shadow-sm ${car.status === 'Paused' ? 'grayscale opacity-70 border-gray-200' : 'border-gray-100 hover:border-primary-300'}`}>
-                             <div className="h-48 relative overflow-hidden">
-                                <img src={car.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                                <div className={`absolute top-4 left-4 backdrop-blur-md px-3 py-1.5 rounded-[10px] text-[9px] font-bold uppercase tracking-widest border ${car.status === 'Paused' ? 'bg-yellow-50/90 text-yellow-600 border-yellow-200' : 'bg-green-50/90 text-green-600 border-green-100'}`}>
-                                  {car.status === 'Paused' ? 'DURAKLATILDI' : 'AKTİF'}
-                                </div>
-                             </div>
-                             <div className="p-6 text-left">
-                                <div className="flex justify-between items-start mb-4">
-                                   <div className="flex-1 min-w-0">
-                                      <h4 className="text-lg font-black text-gray-900 dark:text-white uppercase leading-none truncate">{car.brand} {car.model}</h4>
-                                      <p className="text-[10px] font-bold text-gray-400 uppercase mt-2">{car.location?.district}, {car.location?.city}</p>
-                                   </div>
-                                   <div className="text-right">
-                                      <p className="text-lg font-black text-primary-600">₺{car.pricePerDay}</p>
-                                      <p className="text-[8px] font-bold text-gray-400 uppercase">GÜNLÜK</p>
-                                   </div>
-                                </div>
-                                <div className="grid grid-cols-4 gap-2 mt-6">
-                                   <button onClick={() => navigate('/dashboard')} className="bg-gray-900 text-white p-3 rounded-[10px] flex items-center justify-center hover:bg-black transition-colors" title="İstatistik">
-                                      <TrendingUp size={16} />
-                                   </button>
-                                   <button onClick={() => setEditingCar(car)} className="bg-gray-100 text-gray-600 p-3 rounded-[10px] flex items-center justify-center hover:bg-gray-200 transition-colors" title="Düzenle">
-                                      <Pencil size={16} />
-                                   </button>
-                                   <button onClick={() => handleToggleCarStatus(car.id, car.status)} className={`${car.status === 'Paused' ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'} p-3 rounded-[10px] flex items-center justify-center hover:scale-105 transition-all`} title={car.status === 'Paused' ? 'Yayınla' : 'Duraklat'}>
-                                      {car.status === 'Paused' ? <Play size={16} /> : <Pause size={16} />}
-                                   </button>
-                                   <button onClick={() => handleDeleteCar(car.id, `${car.brand} ${car.model}`)} className="bg-red-100 text-red-600 p-3 rounded-[10px] flex items-center justify-center hover:bg-red-200 transition-colors" title="Sil">
-                                      <Trash2 size={16} />
-                                   </button>
-                                </div>
-                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                 </div>
-              )}
-
-              {/* DİĞER SEKMELER (RENALS, PAYMENTS VB.) ÖNCEKİ KODDA OLDUĞU GİBİ BURADA KALMALI... */}
-              
             </div>
           </main>
         </div>

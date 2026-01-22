@@ -46,11 +46,14 @@ export const dbService = {
     window.dispatchEvent(new Event('storage'));
   },
 
+  // KESİN SİLME MANTIĞI
   deleteCar: (id: number | string) => {
     const cars = dbService.getCars();
+    // ID tipini garantiye almak için String kullanıyoruz
     const updated = cars.filter((c: any) => String(c.id) !== String(id));
     localStorage.setItem('myCars', JSON.stringify(updated));
-    // ÖNEMLİ: Custom event fırlatarak diğer componentlerin (Search vb.) de güncellenmesini sağlıyoruz
+    
+    // Uygulamanın genelini uyar
     window.dispatchEvent(new Event('storage'));
     return true;
   },
@@ -62,11 +65,12 @@ export const dbService = {
     window.dispatchEvent(new Event('storage'));
   },
 
-  // Yeni: İlan Durumunu Değiştir (Aktif/Pasif)
+  // İlan Durumunu Değiştir (Aktif/Dondurulmuş)
   toggleCarStatus: (id: number | string) => {
     const cars = dbService.getCars();
     const updated = cars.map((c: any) => {
       if (String(c.id) === String(id)) {
+        // Active -> Paused, Paused -> Active
         const newStatus = c.status === 'Active' ? 'Paused' : 'Active';
         return { ...c, status: newStatus };
       }
@@ -90,7 +94,7 @@ export const dbService = {
     return defaultCard;
   },
 
-  // BİLDİRİM SİSTEMİ
+  // Bildirim Sistemi
   getNotifications: () => {
     return JSON.parse(localStorage.getItem('notifications') || '[]');
   },
